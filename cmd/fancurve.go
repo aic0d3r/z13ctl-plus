@@ -111,7 +111,7 @@ func runFanCurveSet() error {
 	if tdp, tdpErr := cli.ReadEffectivePPT(profile); tdpErr == nil && tdp.PL1SPL > cli.TDPMaxSafe {
 		for _, p := range points {
 			if p.PWM < cli.HighTDPMinPWM {
-				return fmt.Errorf("PWM %d at %d°C is below minimum %d (80%%) required when sustained TDP is above %dW",
+				return fmt.Errorf("PWM %d at %d°C is below minimum %d (50%%) required when sustained TDP is above %dW",
 					p.PWM, p.Temp, cli.HighTDPMinPWM, cli.TDPMaxSafe)
 			}
 		}

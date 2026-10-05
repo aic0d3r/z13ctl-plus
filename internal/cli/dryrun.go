@@ -160,7 +160,7 @@ func DryRunTdp(watts, pl1, pl2, pl3 int, force bool) {
 		pl3 = watts
 	}
 	if force && pl1 > TDPMaxSafe {
-		fmt.Println("Would set both fans to the 80%+ safety curve (pwm_enable=1, custom mode) for thermal safety")
+		fmt.Println("Would set both fans to the high-TDP safety curve (pwm_enable=1, custom mode) for thermal safety")
 	}
 	base := pptBasePath
 	fmt.Printf("Would write %d to %s/ppt_pl1_spl\n", pl1, base)

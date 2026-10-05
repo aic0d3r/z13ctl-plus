@@ -35,7 +35,7 @@ the same value. Use --pl1, --pl2, --pl3 to override individual limits.
 
 Safety: The sustained power limit (PL1) is capped at 75W by default. Use --force
 to allow PL1 up to 93W (the absolute hardware maximum for the ROG Flow Z13
-GZ302E). When PL1 exceeds 75W, fans are temporarily locked to an 80%+ curve for
+GZ302E). When PL1 exceeds 75W, fans are temporarily locked to a 50%+ curve for
 thermal safety. Burst limits (PL2/PL3) are allowed up to 93W without --force
 since short bursts are thermally safe.
 
@@ -134,7 +134,7 @@ func runTdpSet() error {
 		if err := cli.SetBothFanCurves(cli.HighTDPFanCurve()); err != nil {
 			return fmt.Errorf("failed to set high-TDP fan curve: %w (refusing to apply unsafe TDP)", err)
 		}
-		fmt.Println("Fans set to 80%+ curve for thermal safety")
+		fmt.Println("Fans set to 50%+ curve for thermal safety")
 	}
 
 	if err := cli.SetTDP(watts, pl1, pl2, pl3); err != nil {

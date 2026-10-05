@@ -220,7 +220,7 @@ contrib/
   `ppt_pl2_sppt` (Short Boost), `ppt_fppt` (Fast Boost), `ppt_apu_sppt`,
   `ppt_platform_sppt`. Safety limits: 5–75W (safe), up to 93W with `--force`
   (G-Helper absolute max for 2025 Z13 GZ302E). Sustained PL1 above 75W applies a
-  temporary 80%+ fan safety curve before PPT writes; the desired curve or auto
+  temporary 50%+ fan safety curve before PPT writes; the desired curve or auto
   mode returns when PL1 becomes safe. APU sPPT and Platform sPPT follow PL2.
 - **Independent tuning overrides**: The physical profile is always quiet,
   balanced, or performance. Fan curve, TDP, and undervolt overrides are activated

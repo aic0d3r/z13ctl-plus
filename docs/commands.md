@@ -351,7 +351,7 @@ z13ctl-plus tdp [flags]
 | `--pl1 <watts>` | Override PL1/SPL independently |
 | `--pl2 <watts>` | Override PL2/sPPT independently |
 | `--pl3 <watts>` | Override PL3/fPPT independently |
-| `--force` | Allow sustained TDP (PL1) above 75W (up to 93W). Burst limits (PL2/PL3) are allowed up to 93W without `--force`. When PL1 exceeds 75W, fans are set to an 80% minimum curve; custom curves must keep all PWM values at or above 204 (80%). |
+| `--force` | Allow sustained TDP (PL1) above 75W (up to 93W). Burst limits (PL2/PL3) are allowed up to 93W without `--force`. When PL1 exceeds 75W, fans are set to a 50% minimum curve; custom curves must keep all PWM values at or above 127 (50%). |
 
 **PPT attributes:**
 
@@ -380,7 +380,7 @@ Setting TDP keeps that physical profile and activates an independent override.
 
 - Default range: 5–75W
 - `--force` extends the range to 5–93W
-- When sustained PL1 exceeds 75W, both fans use a temporary 80%+ safety curve
+- When sustained PL1 exceeds 75W, both fans use a temporary 50%+ safety curve
   before TDP is written. The desired custom curve, or auto mode, returns when
   PL1 is safe again. If the fan write fails, TDP is not applied.
 

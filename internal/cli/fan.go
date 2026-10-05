@@ -25,9 +25,9 @@ const (
 	fanCurvePoints = 8
 	fanCount       = 2 // fan 1 (pwm1) and fan 2 (pwm2)
 
-	// HighTDPMinPWM is the minimum PWM value (80% of 255) enforced when
+	// HighTDPMinPWM is the minimum PWM value (50% of 255) enforced when
 	// sustained TDP exceeds TDPMaxSafe. Users can set fans higher but not lower.
-	HighTDPMinPWM = 204
+	HighTDPMinPWM = 127
 )
 
 // fanIndices are the hwmon fan indexes.
@@ -173,18 +173,19 @@ func ResetAllFanCurves() error {
 	return setAllFanModes(2) // auto/firmware
 }
 
-// HighTDPFanCurve returns an 8-point fan curve with a minimum PWM of 80%,
+// HighTDPFanCurve returns an 8-point fan curve with a minimum PWM of 50%,
 // suitable for sustained TDP above 75W. Users can replace this with a custom
 // curve as long as all PWM values stay at or above HighTDPMinPWM.
+// The curve ramps up with temperature and reaches full speed at 80°C.
 func HighTDPFanCurve() []api.FanCurvePoint {
 	return []api.FanCurvePoint{
 		{Temp: 30, PWM: HighTDPMinPWM},
 		{Temp: 40, PWM: HighTDPMinPWM},
-		{Temp: 50, PWM: 215},
-		{Temp: 60, PWM: 225},
-		{Temp: 65, PWM: 235},
-		{Temp: 70, PWM: 240},
-		{Temp: 75, PWM: 250},
+		{Temp: 50, PWM: 140},
+		{Temp: 60, PWM: 165},
+		{Temp: 65, PWM: 190},
+		{Temp: 70, PWM: 215},
+		{Temp: 75, PWM: 235},
 		{Temp: 80, PWM: 255},
 	}
 }

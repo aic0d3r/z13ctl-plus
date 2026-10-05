@@ -161,7 +161,7 @@ z13ctl-plus tdp --set 50
 # Set with individual PL overrides
 z13ctl-plus tdp --set 45 --pl2 55 --pl3 60
 
-# Force high TDP (above 75W, fans set to 80% minimum)
+# Force high TDP (above 75W, fans set to 50% minimum)
 z13ctl-plus tdp --set 85 --force
 
 # Reset TDP to the current profile's firmware defaults

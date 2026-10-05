@@ -132,3 +132,27 @@ func TestFanModeName(t *testing.T) {
 		}
 	}
 }
+
+func TestHighTDPFanCurve(t *testing.T) {
+	points := cli.HighTDPFanCurve()
+	if cli.HighTDPMinPWM != 50*255/100 {
+		t.Fatalf("high-TDP floor = %d, want 50%% (127 PWM)", cli.HighTDPMinPWM)
+	}
+	if len(points) != 8 {
+		t.Fatalf("high-TDP curve has %d points, want 8", len(points))
+	}
+	for i, p := range points {
+		if p.PWM < cli.HighTDPMinPWM || p.PWM > 255 {
+			t.Errorf("point %d PWM = %d, outside high-TDP range", i, p.PWM)
+		}
+		if i > 0 && (p.Temp <= points[i-1].Temp || p.PWM < points[i-1].PWM) {
+			t.Errorf("point %d breaks monotonicity", i)
+		}
+	}
+	if points[0].PWM != 127 || points[1].PWM != 127 {
+		t.Error("cool APU should use the 50% floor")
+	}
+	if points[7].Temp != 80 || points[7].PWM != 255 {
+		t.Error("high-TDP curve must reach full speed at 80°C")
+	}
+}

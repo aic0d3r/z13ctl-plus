@@ -218,7 +218,8 @@ func TestDryRunTdp_Force(t *testing.T) {
 		t.Error("DryRunTdp(80W, force) should mention the safety curve")
 	}
 	if strings.Contains(out, "full speed") {
-		t.Error("DryRunTdp(80W, force) must not claim full speed; the real code sets a custom 80%+ curve")
+		t.Error("DryRunTdp(80W, force) must not claim full speed; the real code sets a custom-mode safety curve")
+	}
 	}
 }
 
@@ -265,5 +266,12 @@ func TestDryRunApply_ZeroColor_RandomFlag(t *testing.T) {
 	// randFlag 0xFF should appear in the SetMode packet hex
 	if !strings.Contains(out, "FF") {
 		t.Error("DryRunApply zero-color: expected FF (randFlag) in output")
+	}
+}
+
+func TestDryRunTdp_BurstAboveSafeMax(t *testing.T) {
+	out := captureStdout(t, func() { cli.DryRunTdp(75, 75, 93, 93, true) })
+	if strings.Contains(out, "thermal safety") {
+		t.Error("burst-only limits above 75W should not apply the high-TDP fan curve")
 	}
 }
