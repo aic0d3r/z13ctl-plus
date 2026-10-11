@@ -220,7 +220,6 @@ func TestDryRunTdp_Force(t *testing.T) {
 	if strings.Contains(out, "full speed") {
 		t.Error("DryRunTdp(80W, force) must not claim full speed; the real code sets a custom-mode safety curve")
 	}
-	}
 }
 
 func TestDryRunTdp_PLOverrides(t *testing.T) {
@@ -249,7 +248,9 @@ func TestDryRunTdpReset(t *testing.T) {
 			t.Errorf("DryRunTdpReset output missing %q", want)
 		}
 	}
-	if strings.Contains(out, "balanced") {
+	// Assert the historically wrong sentence is gone; a bare "balanced" check
+	// would fail on any machine whose live profile happens to be balanced.
+	if strings.Contains(out, "switch profile to balanced") {
 		t.Error("DryRunTdpReset must not claim a switch to balanced; the real reset re-applies the current profile")
 	}
 }
