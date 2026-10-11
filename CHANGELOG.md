@@ -3,7 +3,7 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
-## Unreleased
+## v2.2.0 (2026-10-11)
 
 - Lower the high-TDP fan safety floor from 80% to 50% PWM (127), matching
   upstream `dahui/z13ctl#17`: the safety curve now ramps 127 → 255 between
