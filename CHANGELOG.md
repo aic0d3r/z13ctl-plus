@@ -3,6 +3,15 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## Unreleased
+
+- Lower the high-TDP fan safety floor from 80% to 50% PWM (127), matching
+  upstream `dahui/z13ctl#17`: the safety curve now ramps 127 → 255 between
+  30 °C and 80 °C instead of holding 204+. Sustained PL1 > 75 W is quieter
+  while the APU is cool; full speed at 80 °C, threshold, fans-before-PPT
+  ordering, and the "user curve stands if it meets the floor" rule
+  (introduced in v2.1.1) are unchanged. [#1](https://github.com/aic0d3r/z13ctl-plus/pull/1)
+
 ## v2.1.1 (2026-10-11)
 - `get-state` could abort the daemon with a concurrent map read/write while a
   per-device lighting command ran (GUI polling + lightbar change).
