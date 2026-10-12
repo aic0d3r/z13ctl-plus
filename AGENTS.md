@@ -132,13 +132,19 @@ contrib/
   `$XDG_STATE_HOME/z13ctl/state.json`, then atomically installs a copy only if
   Plus state does not exist. It does not remove the legacy file or manage units.
 - **Named presets and power policy**: Presets independently capture profile,
-  TDP/undervolt (never fan mode, which stays user-controlled), CPU min/EPP/boost, panel overdrive, and refresh rate. The
-  daemon polls external `power_supply` devices and applies assigned AC/battery
-  presets only at startup or a real source transition; manual overrides last
-  until the next transition. Enabling automation snapshots the current
-  settings (in memory); disabling it re-applies that snapshot unless a manual
-  change cleared `ActivePreset` in between. Refresh intent is handled by the shared display
-  coordinator rather than issuing independent KScreen writes.
+  TDP/undervolt (never fan mode, which stays user-controlled), CPU
+  min/EPP/boost, panel overdrive, and refresh rate. `preset-save` captures the
+  current state; `preset-set` stores explicit values (the drawer's editor) and
+  re-applies the preset if it is active. Power-source changes are detected from
+  UPower `OnBattery` signals, with a 30 s `power_supply` poll as fallback; a
+  new source must stay stable 2 s before its preset applies. Presets apply only
+  at startup or a real source transition; manual non-fan changes clear
+  `ActivePreset` and last until the next transition. Applying continues past a
+  failed step and reports all failures together. Enabling automation stores the
+  current settings in `State.PreAutomation` (persisted); disabling re-applies
+  them unless a manual change cleared `ActivePreset` in between. Refresh intent
+  is handled by the shared display coordinator rather than issuing independent
+  KScreen writes.
 - **Shared display coordinator**: Tablet-kit publishes posture and presets publish
   refresh intent. Scale changes only on posture transitions and restores the last
   scale seen in that posture (defaults: desktop/laptop 150%, tablet 175%); the first
@@ -181,6 +187,7 @@ contrib/
   | undervolt reset | `{"cmd":"undervolt-reset"}` | `ok` |
   | full state | `{"cmd":"get-state"}` | `ok`, `state` (cached + sysfs + live temp/RPM + undervolt_available) |
   | preset save/apply/delete | `{"cmd":"preset-save","name":"Gaming"}` (or `preset-apply`, `preset-delete`) | `ok` |
+  | preset set (explicit values) | `{"cmd":"preset-set","name":"Gaming","preset":{"profile":"performance","tdp":{"pl1_spl":70,"pl2_sppt":80,"fppt":93}}}` | `ok` |
   | power policy | `{"cmd":"power-policy-set","enabled":true,"ac_preset":"AC","battery_preset":"Battery"}` | `ok` |
   | display posture | `{"cmd":"display-posture","posture":"tablet"}` | `ok` |
   | display rotation | `{"cmd":"display-rotation","rotation":"left"}` | `ok` |

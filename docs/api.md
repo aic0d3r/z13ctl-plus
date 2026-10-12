@@ -127,6 +127,7 @@ handled, err := api.SendTuningReset()
 
 // Named power presets and automatic source switching
 handled, err := api.SendPresetSave("Daily")
+handled, err := api.SendPresetSet("Daily", api.Preset{Profile: "balanced", RefreshRate: 60})
 handled, err := api.SendPresetApply("Daily")
 handled, err := api.SendPresetDelete("Daily")
 handled, err := api.SendRestoreRecommended()

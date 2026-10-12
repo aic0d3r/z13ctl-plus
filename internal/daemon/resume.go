@@ -65,7 +65,13 @@ func (d *Daemon) watchResume(ctx context.Context) {
 			case "org.freedesktop.login1.Manager.PrepareForSleep":
 				d.handlePrepareForSleep(sig)
 			case "org.freedesktop.DBus.Properties.PropertiesChanged":
-				if sig.Path == "/org/freedesktop/UPower" && lidOpened(sig) {
+				if sig.Path != "/org/freedesktop/UPower" {
+					continue
+				}
+				if onBatteryChanged(sig) {
+					d.requestPowerCheck()
+				}
+				if lidOpened(sig) {
 					slog.Info("lid opened, restoring lighting")
 					d.restoreLighting()
 				}
@@ -103,6 +109,20 @@ func (d *Daemon) handlePrepareForSleep(sig *dbus.Signal) {
 
 // lidOpened reports whether a UPower PropertiesChanged signal indicates the
 // lid transitioned to open (LidIsClosed became false).
+// onBatteryChanged reports whether a UPower PropertiesChanged signal carries
+// OnBattery, i.e. the power source may have changed.
+func onBatteryChanged(sig *dbus.Signal) bool {
+	if len(sig.Body) < 2 {
+		return false
+	}
+	changed, ok := sig.Body[1].(map[string]dbus.Variant)
+	if !ok {
+		return false
+	}
+	_, ok = changed["OnBattery"]
+	return ok
+}
+
 func lidOpened(sig *dbus.Signal) bool {
 	if len(sig.Body) < 2 {
 		return false

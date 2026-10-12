@@ -61,6 +61,7 @@ type request struct {
 	Rotation          string             `json:"rotation,omitempty"`
 	TabletSettings    *TabletSettings    `json:"tablet_settings,omitempty"`
 	TabletIntegration *TabletIntegration `json:"tablet_integration,omitempty"`
+	Preset            *Preset            `json:"preset,omitempty"`
 }
 
 // response is the reply to a command or a streamed event notification.
@@ -307,6 +308,12 @@ func SendTuningReset() (bool, error) {
 // SendPresetSave saves the daemon's current performance and display state as name.
 func SendPresetSave(name string) (bool, error) {
 	return sendRequest(request{Cmd: "preset-save", Name: name})
+}
+
+// SendPresetSet creates or replaces name with explicit preset values. Fan
+// curves are ignored. If name is the active preset it is re-applied.
+func SendPresetSet(name string, preset Preset) (bool, error) {
+	return sendRequest(request{Cmd: "preset-set", Name: name, Preset: &preset})
 }
 
 // SendPresetApply applies a named preset.

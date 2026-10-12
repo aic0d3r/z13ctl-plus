@@ -15,7 +15,11 @@ import (
 	"github.com/dahui/z13ctl/api"
 )
 
-const powerPolicyPollInterval = 2 * time.Second
+const (
+	powerPolicyPollInterval = 30 * time.Second // sysfs fallback when UPower is absent
+	powerPolicySettle       = 2 * time.Second  // new source must be stable this long
+	powerPolicyRetry        = 10 * time.Second // after a failed apply
+)
 
 func (d *Daemon) seedDefaultPresets(fresh bool) error {
 	if !fresh {
@@ -192,7 +196,8 @@ func (d *Daemon) applyPreset(name string) error {
 }
 
 // applyPresetValue applies preset and records name as the active preset; an
-// empty name applies an unnamed snapshot.
+// empty name applies an unnamed snapshot. A failing step does not stop the
+// remaining ones; failures are reported together afterwards.
 func (d *Daemon) applyPresetValue(name string, preset api.Preset) error {
 	d.applyMu.Lock()
 	defer d.applyMu.Unlock()
@@ -214,49 +219,53 @@ func (d *Daemon) applyPresetValue(name string, preset api.Preset) error {
 	next.Undervolt = clonePtr(preset.Undervolt)
 	next.TDPActive = preset.TDP != nil
 	next.UndervoltActive = preset.Undervolt != nil
+
+	var failed []string
 	if err := applyTuning(next, true); err != nil {
+		failed = append(failed, err.Error())
 		if profileAppliedBeforeError(err) {
 			_ = d.commitTuningState(next, "")
 		}
-		return err
-	}
-	if err := d.commitTuningState(next, ""); err != nil {
+	} else if err := d.commitTuningState(next, ""); err != nil {
 		return err
 	}
 	if cpu := preset.CPUPower; cpu != nil {
 		current, _ := cli.ReadCPUPower()
 		if current.MinFrequencyKHz != cpu.MinFrequencyKHz {
 			if err := cli.SetCPUMinFrequency(cpu.MinFrequencyKHz); err != nil {
-				return fmt.Errorf("CPU minimum: %w", err)
+				failed = append(failed, "CPU minimum: "+err.Error())
 			}
 		}
 		if current.EPP != cpu.EPP {
 			if err := cli.SetCPUEPP(cpu.EPP); err != nil {
-				return fmt.Errorf("CPU EPP: %w", err)
+				failed = append(failed, "CPU EPP: "+err.Error())
 			}
 		}
 		if current.Boost != cpu.Boost {
 			if err := cli.SetCPUBoost(cpu.Boost); err != nil {
-				return fmt.Errorf("CPU boost: %w", err)
+				failed = append(failed, "CPU boost: "+err.Error())
 			}
 		}
 	}
+	panelApplied := false
 	if preset.PanelOverdrive != nil {
 		current, readErr := readOptionalInt(cli.FindPanelOverdrivePath())
-		if readErr != nil || current != *preset.PanelOverdrive {
-			if err := cli.SetPanelOverdrive(*preset.PanelOverdrive); err != nil {
-				return fmt.Errorf("panel overdrive: %w", err)
-			}
+		if readErr == nil && current == *preset.PanelOverdrive {
+			panelApplied = true
+		} else if err := cli.SetPanelOverdrive(*preset.PanelOverdrive); err != nil {
+			failed = append(failed, "panel overdrive: "+err.Error())
+		} else {
+			panelApplied = true
 		}
 	}
 	if preset.RefreshRate != 0 {
 		if err := d.setDisplayRefresh(preset.RefreshRate); err != nil {
-			return fmt.Errorf("refresh rate: %w", err)
+			failed = append(failed, "refresh rate: "+err.Error())
 		}
 	}
 
 	d.mu.Lock()
-	if preset.PanelOverdrive != nil {
+	if panelApplied {
 		d.state.PanelOverdrive = *preset.PanelOverdrive
 	}
 	d.state.ActivePreset = name
@@ -264,10 +273,51 @@ func (d *Daemon) applyPresetValue(name string, preset api.Preset) error {
 	if err := d.persistState(); err != nil {
 		return err
 	}
-	if name == "" {
-		slog.Info("pre-automation settings restored")
-	} else {
-		slog.Info("preset applied", "name", name)
+	label := name
+	if label == "" {
+		label = "pre-automation settings"
+	}
+	if len(failed) > 0 {
+		slog.Warn("preset partly applied", "name", label, "failed", failed)
+		return fmt.Errorf("%s partly applied: %s", label, strings.Join(failed, "; "))
+	}
+	slog.Info("preset applied", "name", label)
+	return nil
+}
+
+// setPreset creates or replaces name with explicit values (the drawer's
+// preset editor). Re-applies it when it is the active preset.
+func (d *Daemon) setPreset(name string, preset api.Preset) error {
+	name, err := validatePresetName(name)
+	if err != nil {
+		return err
+	}
+	preset = clonePreset(preset)
+	preset.FanCurve = nil
+	preset.BaseProfile = ""
+	if preset.Undervolt != nil {
+		preset.Undervolt.Active = false
+	}
+	if err := validatePreset(preset); err != nil {
+		return err
+	}
+	if err := validatePresetHardware(preset); err != nil {
+		return err
+	}
+	d.mu.Lock()
+	presets := clonePresetMap(d.state.Presets)
+	if presets == nil {
+		presets = make(map[string]api.Preset)
+	}
+	presets[name] = preset
+	d.state.Presets = presets
+	active := d.state.ActivePreset == name
+	d.mu.Unlock()
+	if err := d.persistState(); err != nil {
+		return err
+	}
+	if active {
+		return d.applyPreset(name)
 	}
 	return nil
 }
@@ -384,6 +434,18 @@ func clonePresetMap(in map[string]api.Preset) map[string]api.Preset {
 }
 
 func (d *Daemon) setPowerPolicy(enabled bool, acPreset, batteryPreset string) error {
+	// Captured before taking mu: capturePreset reads hardware and locks mu.
+	var snapshot *api.Preset
+	if enabled {
+		d.mu.Lock()
+		wasOn := d.state.PowerPolicy != nil && d.state.PowerPolicy.Enabled
+		d.mu.Unlock()
+		if !wasOn {
+			s := d.capturePreset()
+			snapshot = &s
+		}
+	}
+
 	d.mu.Lock()
 	current := d.state.PowerPolicy
 	if acPreset == "" {
@@ -414,16 +476,19 @@ func (d *Daemon) setPowerPolicy(enabled bool, acPreset, batteryPreset string) er
 	}
 	wasEnabled := current != nil && current.Enabled
 	applyNow := enabled && !wasEnabled
-	restore := restoreOnDisable(wasEnabled, enabled, d.state.ActivePreset, d.preAutoPreset)
-	if !enabled {
-		d.preAutoPreset = nil
+	restore := restoreOnDisable(wasEnabled, enabled, d.state.ActivePreset, d.state.PreAutomation)
+	switch {
+	case !enabled:
+		d.state.PreAutomation = nil
+	case !wasEnabled:
+		d.state.PreAutomation = snapshot
 	}
-	if enabled && current != nil && current.Enabled {
+	if enabled && wasEnabled {
 		switch d.powerSource {
 		case cli.PowerSourceAC:
-			applyNow = applyNow || current.ACPreset != acPreset
+			applyNow = current.ACPreset != acPreset
 		case cli.PowerSourceBattery:
-			applyNow = applyNow || current.BatteryPreset != batteryPreset
+			applyNow = current.BatteryPreset != batteryPreset
 		}
 	}
 	d.state.PowerPolicy = &api.PowerPolicy{Enabled: enabled, ACPreset: acPreset, BatteryPreset: batteryPreset}
@@ -434,12 +499,6 @@ func (d *Daemon) setPowerPolicy(enabled bool, acPreset, batteryPreset string) er
 	}
 	if restore != nil {
 		return d.applyPresetValue("", *restore)
-	}
-	if enabled && !wasEnabled {
-		snapshot := d.capturePreset()
-		d.mu.Lock()
-		d.preAutoPreset = &snapshot
-		d.mu.Unlock()
 	}
 	if applyNow {
 		if source != cli.PowerSourceAC && source != cli.PowerSourceBattery {
@@ -462,9 +521,6 @@ func (d *Daemon) setPowerPolicy(enabled bool, acPreset, batteryPreset string) er
 	return nil
 }
 
-// restoreOnDisable returns the pre-automation snapshot to re-apply when
-// automation is turned off while its preset is still untouched. A manual
-// change clears ActivePreset, and manual overrides win.
 func restoreOnDisable(wasEnabled, enabled bool, activePreset string, snapshot *api.Preset) *api.Preset {
 	if !wasEnabled || enabled || activePreset == "" {
 		return nil
@@ -515,9 +571,20 @@ func (d *Daemon) applyInitialPowerPolicy() bool {
 	return true
 }
 
+func (d *Daemon) requestPowerCheck() {
+	select {
+	case d.powerCh <- struct{}{}:
+	default:
+	}
+}
+
+// watchPowerPolicy applies the assigned preset after a real power-source
+// transition. UPower OnBattery signals wake it immediately; a slow sysfs poll
+// covers systems without UPower. A new source must stay stable for
+// powerPolicySettle before its preset is applied.
 func (d *Daemon) watchPowerPolicy(ctx context.Context) {
-	ticker := time.NewTicker(powerPolicyPollInterval)
-	defer ticker.Stop()
+	timer := time.NewTimer(powerPolicyPollInterval)
+	defer timer.Stop()
 	d.mu.Lock()
 	lastAppliedSource := d.powerSource
 	observedSource := d.powerSource
@@ -532,50 +599,61 @@ func (d *Daemon) watchPowerPolicy(ctx context.Context) {
 		case <-d.policyCh:
 			force = true
 			nextApply = time.Now().Add(3 * time.Second)
-		case <-ticker.C:
-			source, err := cli.ReadPowerSource()
-			if err != nil {
-				continue
-			}
-			d.mu.Lock()
-			d.powerSource = source
-			policy := clonePtr(d.state.PowerPolicy)
-			activePreset := d.state.ActivePreset
-			d.mu.Unlock()
-			if source != observedSource {
-				observedSource = source
-				assigned := ""
-				if policy != nil {
-					assigned = policy.BatteryPreset
-					if source == cli.PowerSourceAC {
-						assigned = policy.ACPreset
-					}
-				}
-				if activePreset == assigned && assigned != "" {
-					lastAppliedSource = source
-					force = false
-				} else {
-					force = true
-					nextApply = time.Now().Add(powerPolicyPollInterval)
-				}
-				continue
-			}
-			if policy == nil || !policy.Enabled || (!force && source == lastAppliedSource) {
-				continue
-			}
-			if time.Now().Before(nextApply) {
-				continue
-			}
-			name := policy.BatteryPreset
-			if source == cli.PowerSourceAC {
-				name = policy.ACPreset
-			}
-			if err := d.applyPreset(name); err != nil {
-				slog.Warn("failed to apply power preset; will retry", "source", source, "preset", name, "err", err)
-				continue
-			}
-			lastAppliedSource = source
-			force = false
+		case <-d.powerCh:
+		case <-timer.C:
 		}
+		d.checkPowerPolicy(&observedSource, &lastAppliedSource, &force, &nextApply)
+		wait := powerPolicyPollInterval
+		if force {
+			wait = max(time.Until(nextApply), 100*time.Millisecond)
+		}
+		timer.Reset(wait)
 	}
+}
+
+func (d *Daemon) checkPowerPolicy(observedSource, lastAppliedSource *string, force *bool, nextApply *time.Time) {
+	source, err := cli.ReadPowerSource()
+	if err != nil {
+		return
+	}
+	d.mu.Lock()
+	d.powerSource = source
+	policy := clonePtr(d.state.PowerPolicy)
+	activePreset := d.state.ActivePreset
+	d.mu.Unlock()
+	if source != *observedSource {
+		*observedSource = source
+		assigned := ""
+		if policy != nil {
+			assigned = policy.BatteryPreset
+			if source == cli.PowerSourceAC {
+				assigned = policy.ACPreset
+			}
+		}
+		if activePreset == assigned && assigned != "" {
+			*lastAppliedSource = source
+			*force = false
+		} else {
+			*force = true
+			*nextApply = time.Now().Add(powerPolicySettle)
+		}
+		return
+	}
+	if policy == nil || !policy.Enabled || (!*force && source == *lastAppliedSource) {
+		return
+	}
+	if time.Now().Before(*nextApply) {
+		return
+	}
+	name := policy.BatteryPreset
+	if source == cli.PowerSourceAC {
+		name = policy.ACPreset
+	}
+	if err := d.applyPreset(name); err != nil {
+		slog.Warn("failed to apply power preset; will retry", "source", source, "preset", name, "err", err)
+		*nextApply = time.Now().Add(powerPolicyRetry)
+		return
+	}
+	*lastAppliedSource = source
+	*force = false
 }

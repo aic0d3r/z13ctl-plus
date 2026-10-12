@@ -50,6 +50,7 @@ type request struct {
 	Rotation          string                 `json:"rotation,omitempty"`
 	TabletSettings    *api.TabletSettings    `json:"tablet_settings,omitempty"`
 	TabletIntegration *api.TabletIntegration `json:"tablet_integration,omitempty"`
+	Preset            *api.Preset            `json:"preset,omitempty"`
 }
 
 // response is the reply to a command or a streamed event notification.
@@ -156,6 +157,11 @@ func (d *Daemon) dispatch(req request) response {
 		return d.handleTuningReset()
 	case "preset-save":
 		return responseFromError(d.savePreset(req.Name))
+	case "preset-set":
+		if req.Preset == nil {
+			return response{OK: false, Error: "preset-set requires a preset"}
+		}
+		return responseFromError(d.setPreset(req.Name, *req.Preset))
 	case "preset-apply":
 		return responseFromError(d.applyPreset(req.Name))
 	case "preset-delete":
@@ -714,7 +720,6 @@ func (d *Daemon) handleFanCurve(req request) response {
 	d.mu.Lock()
 	d.state.FanCurve = &api.FanCurveState{Mode: 1, Points: points}
 	d.state.FanCurveActive = true
-	d.state.ActivePreset = ""
 	d.mu.Unlock()
 	if err := d.persistState(); err != nil {
 		slog.Warn("failed to save state", "err", err)
@@ -744,7 +749,6 @@ func (d *Daemon) handleFanCurveReset() response {
 	d.mu.Lock()
 	d.state.FanCurve = nil
 	d.state.FanCurveActive = false
-	d.state.ActivePreset = ""
 	s := d.state
 	d.mu.Unlock()
 	if err := saveState(s); err != nil {

@@ -28,8 +28,9 @@ type State struct {
 	Presets            map[string]Preset        `json:"presets,omitempty"`
 	PowerPolicy        *PowerPolicy             `json:"power_policy,omitempty"`
 	ActivePreset       string                   `json:"active_preset,omitempty"`
-	PowerSource        string                   `json:"power_source,omitempty"` // live: "ac", "battery", or ""
-	UndervoltAvailable bool                     `json:"undervolt_available"`    // true if ryzen_smu is loaded
+	PreAutomation      *Preset                  `json:"pre_automation,omitempty"` // settings restored when power automation is turned off
+	PowerSource        string                   `json:"power_source,omitempty"`   // live: "ac", "battery", or ""
+	UndervoltAvailable bool                     `json:"undervolt_available"`      // true if ryzen_smu is loaded
 	CPUPower           *CPUPowerState           `json:"cpu_power,omitempty"`
 	RefreshRate        int                      `json:"refresh_rate,omitempty"` // eDP-1 refresh rate in Hz (0 = unknown)
 	BatteryDetail      *BatteryState            `json:"battery_detail,omitempty"`
