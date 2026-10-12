@@ -349,7 +349,7 @@ z13ctl-plus tdp [flags]
 |------|-------------|
 | `--get` | Print current PPT values |
 | `--set <watts>` | Set all PPT limits to the specified wattage |
-| `--reset` | Switch to balanced profile (firmware manages PPT and fan curves) |
+| `--reset` | Reset TDP to the current physical profile's firmware defaults (override deactivated; profile unchanged) |
 | `--pl1 <watts>` | Override PL1/SPL independently |
 | `--pl2 <watts>` | Override PL2/sPPT independently |
 | `--pl3 <watts>` | Override PL3/fPPT independently |

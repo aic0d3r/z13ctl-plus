@@ -381,7 +381,8 @@ Config: `.goreleaser.yml`. GitHub Actions workflow: `.github/workflows/release.y
 ## Documentation
 
 - `README.md` — user-facing (installation, commands, colors, contributing).
-- `PROTOCOL.md` — technical HID protocol reference for developers.
+- `PROTOCOL.md` — technical HID protocol reference for developers (symlink to
+  `docs/protocol.md`; edit the docs copy only).
 - Per-command docs are not generated separately; `README.md` and `--help` are the
   authoritative references.
 
