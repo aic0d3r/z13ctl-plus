@@ -90,10 +90,6 @@ sudo z13ctl-plus setup
 systemctl --user enable --now z13ctl-plus.socket z13ctl-plus.service
 ```
 
-> **AUR lag:** the `z13ctl-plus-bin` AUR package trails the GitHub releases (currently
-> 1.3.1 vs. **v2.1.0** — AUR updates are paused). It lacks the tablet integration. For
-> the latest, install the **release tarball** from GitHub instead of AUR.
-
 See the [Installation guide](https://aic0d3r.github.io/z13ctl-plus/installation/) for
 systemd service setup, source builds, v1-to-v2 migration, and uninstall
 instructions. Packages leave the Plus user daemon disabled; enable it only after

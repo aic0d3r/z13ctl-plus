@@ -20,7 +20,7 @@ integrations can pull it in without inheriting the CLI's dependency tree.
     not the upstream source at the same import path. For a local checkout:
 
     ```go
-    require github.com/dahui/z13ctl/api v1.1.6
+    require github.com/dahui/z13ctl/api v1.6.0
 
     replace github.com/dahui/z13ctl/api => ../z13ctl-plus/api
     ```
@@ -135,10 +135,11 @@ handled, err := api.SendPowerPolicySet(true, "Plugged In", "On Battery")
 // Optional tablet companion settings and live heartbeat
 handled, err := api.SendTabletSettingsSet(api.TabletSettings{
     DisableTouchscreenInDesktop: true,
-    TwoFingerHoldContextMenu:        false,
+    TwoFingerHoldContextMenu:    false,
     TouchpadEnabled:             false,
     ScrollSensitivity:           3,
     ScrollSpeed:                 2,
+    KeepDisplayScale:            false,
 })
 handled, err := api.SendTabletIntegrationReport(api.TabletIntegration{
     Posture: "tablet", Healthy: true, LastSeen: time.Now().Unix(),
