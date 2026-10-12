@@ -162,6 +162,8 @@ func (d *Daemon) dispatch(req request) response {
 			return response{OK: false, Error: "preset-set requires a preset"}
 		}
 		return responseFromError(d.setPreset(req.Name, *req.Preset))
+	case "preset-rename":
+		return responseFromError(d.renamePreset(req.Name, req.Set))
 	case "preset-apply":
 		return responseFromError(d.applyPreset(req.Name))
 	case "preset-delete":

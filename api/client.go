@@ -316,6 +316,11 @@ func SendPresetSet(name string, preset Preset) (bool, error) {
 	return sendRequest(request{Cmd: "preset-set", Name: name, Preset: &preset})
 }
 
+// SendPresetRename renames a preset, keeping its power-policy assignments.
+func SendPresetRename(from, to string) (bool, error) {
+	return sendRequest(request{Cmd: "preset-rename", Name: from, Set: to})
+}
+
 // SendPresetApply applies a named preset.
 func SendPresetApply(name string) (bool, error) {
 	return sendRequest(request{Cmd: "preset-apply", Name: name})

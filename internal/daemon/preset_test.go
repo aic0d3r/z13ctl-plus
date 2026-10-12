@@ -134,3 +134,23 @@ func TestRestoreOnDisable(t *testing.T) {
 		}
 	}
 }
+
+func TestRenamePresetInState(t *testing.T) {
+	state := api.State{
+		Presets:      map[string]api.Preset{"70W": {Profile: "balanced"}, "Battery": {Profile: "quiet"}},
+		PowerPolicy:  &api.PowerPolicy{Enabled: true, ACPreset: "70W", BatteryPreset: "Battery"},
+		ActivePreset: "70W",
+	}
+	if err := renamePresetInState(&state, "70W", "Battery"); err == nil {
+		t.Fatal("rename onto existing preset succeeded")
+	}
+	if err := renamePresetInState(&state, "70W", "Desk"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := state.Presets["Desk"]; !ok || state.PowerPolicy.ACPreset != "Desk" || state.ActivePreset != "Desk" {
+		t.Fatalf("rename not carried over: %+v %+v %q", state.Presets, state.PowerPolicy, state.ActivePreset)
+	}
+	if _, ok := state.Presets["70W"]; ok {
+		t.Fatal("old name still present")
+	}
+}

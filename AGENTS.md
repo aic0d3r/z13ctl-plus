@@ -187,6 +187,7 @@ contrib/
   | undervolt reset | `{"cmd":"undervolt-reset"}` | `ok` |
   | full state | `{"cmd":"get-state"}` | `ok`, `state` (cached + sysfs + live temp/RPM + undervolt_available) |
   | preset save/apply/delete | `{"cmd":"preset-save","name":"Gaming"}` (or `preset-apply`, `preset-delete`) | `ok` |
+  | preset rename | `{"cmd":"preset-rename","name":"Old","set":"New"}` (keeps assignments) | `ok` |
   | preset set (explicit values) | `{"cmd":"preset-set","name":"Gaming","preset":{"profile":"performance","tdp":{"pl1_spl":70,"pl2_sppt":80,"fppt":93}}}` | `ok` |
   | power policy | `{"cmd":"power-policy-set","enabled":true,"ac_preset":"AC","battery_preset":"Battery"}` | `ok` |
   | display posture | `{"cmd":"display-posture","posture":"tablet"}` | `ok` |

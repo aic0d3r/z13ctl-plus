@@ -185,6 +185,53 @@ func (d *Daemon) deletePreset(name string) error {
 	return saveState(d.state)
 }
 
+// renamePreset renames a preset, carrying over its power-policy assignments
+// and active marker.
+func (d *Daemon) renamePreset(from, to string) error {
+	to, err := validatePresetName(to)
+	if err != nil {
+		return err
+	}
+	d.mu.Lock()
+	if err := renamePresetInState(&d.state, from, to); err != nil {
+		d.mu.Unlock()
+		return err
+	}
+	d.mu.Unlock()
+	return d.persistState()
+}
+
+func renamePresetInState(state *api.State, from, to string) error {
+	preset, ok := state.Presets[from]
+	if !ok {
+		return fmt.Errorf("preset %q not found", from)
+	}
+	if from == to {
+		return nil
+	}
+	if _, exists := state.Presets[to]; exists {
+		return fmt.Errorf("preset %q already exists", to)
+	}
+	presets := clonePresetMap(state.Presets)
+	delete(presets, from)
+	presets[to] = preset
+	state.Presets = presets
+	if p := state.PowerPolicy; p != nil {
+		policy := *p
+		if policy.ACPreset == from {
+			policy.ACPreset = to
+		}
+		if policy.BatteryPreset == from {
+			policy.BatteryPreset = to
+		}
+		state.PowerPolicy = &policy
+	}
+	if state.ActivePreset == from {
+		state.ActivePreset = to
+	}
+	return nil
+}
+
 func (d *Daemon) applyPreset(name string) error {
 	d.mu.Lock()
 	preset, ok := d.state.Presets[name]
