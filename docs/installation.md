@@ -414,6 +414,33 @@ ls -la /dev/hidraw*
 groups
 ```
 
+**Profile switches stop changing CPU behavior after turning CPU boost off**
+
+The daemon writes the *global* `cpufreq/boost` file, while
+[power-profiles-daemon](https://gitlab.freedesktop.org/upower/power-profiles-daemon)
+(PPD) restores profiles by writing *per-policy* `policy*/boost` files. The
+kernel rejects those per-policy writes while global boost is off
+(`EINVAL`), so PPD aborts and sticks on its previous profile — the governor
+stays `performance`, CPU energy preference locks to `performance`, and
+profile switches appear dead. The daemon logs
+`powerprofilesctl set failed; PPD may stay stuck until CPU boost is re-enabled`
+when this happens.
+
+Workarounds, in order of preference:
+
+- Re-enable CPU boost, then switch profiles once — this unsticks PPD.
+- If you don't rely on your desktop's power-profile applet, mask PPD and let
+  z13ctl-plus own power management alone. Without PPD the kernel keeps its
+  default governor, so CPU energy preference stays fully selectable:
+  ```sh
+  sudo systemctl mask power-profiles-daemon
+  sudo reboot   # or stop every PPD process
+  ```
+
+z13ctl-plus deliberately does **not** mask or configure PPD itself: the
+installer only manages its own files, and masking would silently break the
+KDE/GNOME power-profile UIs for anyone who wants both.
+
 **Daemon logs "button watcher stopped; retrying … permission denied"**
 
 Another process may be holding an exclusive grab on the Armoury Crate button

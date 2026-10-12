@@ -4,6 +4,7 @@ package cli
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -94,7 +95,16 @@ func setPPD(asusProfile string) {
 	if err != nil {
 		return
 	}
-	_ = exec.Command(bin, "set", ppd).Run()
+	if out, err := exec.Command(bin, "set", ppd).CombinedOutput(); err != nil {
+		// PPD's amd-pstate driver restores profiles by writing per-policy
+		// boost files, which the kernel rejects (EINVAL) while the global
+		// boost file is 0 — z13ctl writes the global one. PPD then sticks on
+		// its previous profile, so governor/EPP stop following profile
+		// switches until boost is re-enabled. The sysfs profile write above
+		// already succeeded, so warn instead of failing the switch.
+		slog.Warn("powerprofilesctl set failed; PPD may stay stuck until CPU boost is re-enabled",
+			"profile", ppd, "err", err, "output", strings.TrimSpace(string(out)))
+	}
 }
 
 // profileDeviceSupports reports whether the platform_profile device at base
