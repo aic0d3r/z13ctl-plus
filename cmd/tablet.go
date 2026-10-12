@@ -14,6 +14,7 @@ var (
 	tabletSettingsTouchpadEnabled     bool
 	tabletScrollSensitivity           int
 	tabletScrollSpeed                 int
+	tabletKeepDisplayScale            bool
 
 	tabletPosture            string
 	tabletFolioPresent       bool
@@ -65,6 +66,7 @@ var tabletSettingsSetCmd = &cobra.Command{
 			TouchpadEnabled:             tabletSettingsTouchpadEnabled,
 			ScrollSensitivity:           tabletScrollSensitivity,
 			ScrollSpeed:                 tabletScrollSpeed,
+			KeepDisplayScale:            tabletKeepDisplayScale,
 		}
 		handled, err := api.SendTabletSettingsSet(settings)
 		if err != nil {
@@ -109,7 +111,8 @@ func init() {
 	tabletSettingsSetCmd.Flags().BoolVar(&tabletSettingsTouchpadEnabled, "touchpad-enabled", false, "Enable the folio touchpad")
 	tabletSettingsSetCmd.Flags().IntVar(&tabletScrollSensitivity, "scroll-sensitivity", 3, "Touch scroll sensitivity level (1-5)")
 	tabletSettingsSetCmd.Flags().IntVar(&tabletScrollSpeed, "scroll-speed", 2, "Touch scroll speed level (1-5)")
-	for _, name := range []string{"disable-touchscreen-in-desktop", "two-finger-hold-context-menu", "touchpad-enabled", "scroll-sensitivity", "scroll-speed"} {
+	tabletSettingsSetCmd.Flags().BoolVar(&tabletKeepDisplayScale, "keep-display-scale", false, "Never change the display scale on posture changes")
+	for _, name := range []string{"disable-touchscreen-in-desktop", "two-finger-hold-context-menu", "touchpad-enabled", "scroll-sensitivity", "scroll-speed", "keep-display-scale"} {
 		_ = tabletSettingsSetCmd.MarkFlagRequired(name)
 	}
 

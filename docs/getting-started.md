@@ -45,7 +45,9 @@ z13ctl-plus display rotation right
 ```
 
 The coordinator combines scale and preset refresh-rate changes without modifying
-external displays. Desktop and laptop use 150% scale; tablet uses 175% and
+external displays. On a posture change it restores the scale last used in that
+posture (defaults: 150% desktop/laptop, 175% tablet), so your own scale sticks. Set
+`keep_display_scale` (GUI: "Keep my display scale") to never change it. Tablet
 preserves Plasma's current rotation unless an explicit rotation intent was sent.
 
 ---

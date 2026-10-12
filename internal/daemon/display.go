@@ -139,14 +139,31 @@ func (d *Daemon) reconcileDisplay() (changed, retry bool, err error) {
 	rotation := ""
 	switch intent.posture {
 	case "desktop", "laptop":
-		scale = 1.5
 		rotation = "none"
 	case "tablet":
-		scale = 1.75
 		rotation = intent.rotation
 	default:
 		// No posture reported (tablet kit absent): scale and rotation are not
 		// ours to set, but refresh intents still apply.
+	}
+	// Scale changes only on a posture transition, so a scale the user picks in
+	// System Settings sticks and is restored when they return to that posture.
+	// The first posture after startup keeps KDE's restored scale.
+	d.mu.Lock()
+	keepScale := d.state.TabletSettings.KeepDisplayScale
+	d.mu.Unlock()
+	if !keepScale && intent.posture != "" && d.scalePosture != "" && intent.posture != d.scalePosture {
+		if d.postureScales == nil {
+			d.postureScales = map[string]float64{}
+		}
+		d.postureScales[d.scalePosture] = current.Scale
+		scale = d.postureScales[intent.posture]
+		if scale == 0 {
+			scale = 1.5
+			if intent.posture == "tablet" {
+				scale = 1.75
+			}
+		}
 	}
 	refresh := intent.refresh
 	if scale != 0 && math.Abs(current.Scale-scale) < 0.01 {
@@ -158,11 +175,14 @@ func (d *Daemon) reconcileDisplay() (changed, retry bool, err error) {
 	if current.Refresh == refresh {
 		refresh = 0
 	}
-	if scale == 0 && rotation == "" && refresh == 0 {
-		return false, false, nil
+	if scale != 0 || rotation != "" || refresh != 0 {
+		if err := cli.ApplyInternalDisplay(scale, rotation, refresh); err != nil {
+			return false, true, err
+		}
+		changed = true
 	}
-	if err := cli.ApplyInternalDisplay(scale, rotation, refresh); err != nil {
-		return false, true, err
+	if intent.posture != "" {
+		d.scalePosture = intent.posture
 	}
-	return true, false, nil
+	return changed, false, nil
 }

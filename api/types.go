@@ -47,6 +47,8 @@ type TabletSettings struct {
 	TouchpadEnabled             bool `json:"touchpad_enabled"`
 	ScrollSensitivity           int  `json:"scroll_sensitivity"`
 	ScrollSpeed                 int  `json:"scroll_speed"`
+	// KeepDisplayScale stops posture changes from touching the panel scale.
+	KeepDisplayScale bool `json:"keep_display_scale"`
 }
 
 // TabletIntegration is the latest live status reported by z13-tablet-kit.

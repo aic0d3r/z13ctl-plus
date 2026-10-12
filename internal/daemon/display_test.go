@@ -43,26 +43,82 @@ func TestDisplayIntentValidation(t *testing.T) {
 	}
 }
 
-func TestReconcileDisplayTabletScalePreservesRotation(t *testing.T) {
+// fakeKScreen installs a kscreen-doctor stub reporting the scale in
+// $Z13CTL_SCALE and recording apply arguments in the returned file.
+func fakeKScreen(t *testing.T, scale string) string {
+	t.Helper()
 	dir := t.TempDir()
 	argsPath := filepath.Join(dir, "args")
-	script := "#!/bin/sh\nif [ \"$1\" = \"-o\" ]; then\n  printf 'Output: 1 eDP-1 abc\\n\\tenabled\\n\\tModes: 1:2560x1600@180.00*\\n\\tScale: 1.5\\n\\tRotation: 2\\n'\n  exit 0\nfi\nprintf '%s\\n' \"$*\" > \"$Z13CTL_ARGS\"\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"-o\" ]; then\n  printf 'Output: 1 eDP-1 abc\\n\\tenabled\\n\\tModes: 1:2560x1600@180.00*\\n\\tScale: %s\\n\\tRotation: 2\\n' \"$Z13CTL_SCALE\"\n  exit 0\nfi\nprintf '%s\\n' \"$*\" > \"$Z13CTL_ARGS\"\n"
 	if err := os.WriteFile(filepath.Join(dir, "kscreen-doctor"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("Z13CTL_ARGS", argsPath)
+	t.Setenv("Z13CTL_SCALE", scale)
+	return argsPath
+}
 
-	d := &Daemon{display: displayIntent{posture: "tablet"}}
-	changed, retry, err := d.reconcileDisplay()
-	if err != nil || !changed || retry {
-		t.Fatalf("reconcileDisplay() = changed %t, retry %t, err %v", changed, retry, err)
+// reconcileArgs runs one reconcile for posture and returns the kscreen-doctor
+// apply arguments ("" when nothing was applied).
+func reconcileArgs(t *testing.T, d *Daemon, argsPath, posture string) string {
+	t.Helper()
+	_ = os.Remove(argsPath)
+	d.display.posture = posture
+	if _, retry, err := d.reconcileDisplay(); err != nil || retry {
+		t.Fatalf("reconcileDisplay(%s) retry %t, err %v", posture, retry, err)
 	}
 	args, err := os.ReadFile(argsPath)
+	if os.IsNotExist(err) {
+		return ""
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := strings.TrimSpace(string(args)), "output.eDP-1.scale.1.75"; got != want {
+	return strings.TrimSpace(string(args))
+}
+
+func TestReconcileDisplayTabletScalePreservesRotation(t *testing.T) {
+	argsPath := fakeKScreen(t, "1.5")
+	d := &Daemon{scalePosture: "laptop"}
+	if got, want := reconcileArgs(t, d, argsPath, "tablet"), "output.eDP-1.scale.1.75"; got != want {
 		t.Fatalf("kscreen-doctor args = %q, want %q", got, want)
+	}
+}
+
+func TestReconcileDisplayRespectsUserScale(t *testing.T) {
+	argsPath := fakeKScreen(t, "1.25")
+	d := &Daemon{}
+	// Startup posture and the 30 s re-publish leave the user's scale alone.
+	if got := reconcileArgs(t, d, argsPath, "tablet"); got != "" {
+		t.Fatalf("startup reconcile applied %q", got)
+	}
+	if got := reconcileArgs(t, d, argsPath, "tablet"); got != "" {
+		t.Fatalf("repeat reconcile applied %q", got)
+	}
+	// Leaving tablet remembers 1.25 there; laptop gets the default.
+	if got, want := reconcileArgs(t, d, argsPath, "laptop"), "output.eDP-1.scale.1.5 output.eDP-1.rotation.none"; got != want {
+		t.Fatalf("laptop args = %q, want %q", got, want)
+	}
+	// User picks 1.0 in laptop; returning to tablet restores 1.25.
+	t.Setenv("Z13CTL_SCALE", "1")
+	if got := reconcileArgs(t, d, argsPath, "laptop"); got != "output.eDP-1.rotation.none" {
+		t.Fatalf("repeat laptop args = %q", got)
+	}
+	if got, want := reconcileArgs(t, d, argsPath, "tablet"), "output.eDP-1.scale.1.25"; got != want {
+		t.Fatalf("tablet args = %q, want %q", got, want)
+	}
+	t.Setenv("Z13CTL_SCALE", "1.25")
+	if got, want := reconcileArgs(t, d, argsPath, "laptop"), "output.eDP-1.scale.1 output.eDP-1.rotation.none"; got != want {
+		t.Fatalf("laptop return args = %q, want %q", got, want)
+	}
+}
+
+func TestReconcileDisplayKeepScaleNeverChangesScale(t *testing.T) {
+	argsPath := fakeKScreen(t, "1.25")
+	d := &Daemon{scalePosture: "laptop"}
+	d.state.TabletSettings.KeepDisplayScale = true
+	if got := reconcileArgs(t, d, argsPath, "tablet"); got != "" {
+		t.Fatalf("keep-scale reconcile applied %q", got)
 	}
 }

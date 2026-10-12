@@ -138,8 +138,10 @@ contrib/
   until the next transition. Refresh intent is handled by the shared display
   coordinator rather than issuing independent KScreen writes.
 - **Shared display coordinator**: Tablet-kit publishes posture and presets publish
-  refresh intent. Desktop/laptop use 150% scale and force normal rotation; tablet
-  uses 175% and preserves Plasma's current rotation unless an explicit rotation
+  refresh intent. Scale changes only on posture transitions and restores the last
+  scale seen in that posture (defaults: desktop/laptop 150%, tablet 175%); the first
+  posture after startup keeps KDE's scale. Desktop/laptop force normal rotation; tablet
+  preserves Plasma's current rotation unless an explicit rotation
   intent exists. The daemon coalesces requested internal-panel changes, never
   touches external outputs, waits 10 seconds after desktop/dock posture, and skips
   writes while eDP-1 is disabled.
@@ -180,7 +182,7 @@ contrib/
   | power policy | `{"cmd":"power-policy-set","enabled":true,"ac_preset":"AC","battery_preset":"Battery"}` | `ok` |
   | display posture | `{"cmd":"display-posture","posture":"tablet"}` | `ok` |
   | display rotation | `{"cmd":"display-rotation","rotation":"left"}` | `ok` |
-  | tablet settings | `{"cmd":"tablet-settings-set","tablet_settings":{"disable_touchscreen_in_desktop":true,"two_finger_hold_context_menu":false,"touchpad_enabled":false,"scroll_sensitivity":3,"scroll_speed":2}}` | `ok` |
+  | tablet settings | `{"cmd":"tablet-settings-set","tablet_settings":{"disable_touchscreen_in_desktop":true,"two_finger_hold_context_menu":false,"touchpad_enabled":false,"scroll_sensitivity":3,"scroll_speed":2,"keep_display_scale":false}}` | `ok` |
   | tablet status | `{"cmd":"tablet-integration-report","tablet_integration":{"posture":"tablet",...}}` | `ok` |
   | subscribe | `{"cmd":"subscribe","events":["gui-toggle","state-changed"]}` | `ok`, then streams events |
 - **IPC library**: Hand-rolled JSON. gRPC/drpc require protobuf code generation;
@@ -441,7 +443,8 @@ Tablet-specific daemon behaviour (all complete):
 - `z13ctl-plus tablet settings` (persist) + `z13ctl-plus tablet report` (ephemeral
   integration state); settings projected to
   `$XDG_RUNTIME_DIR/z13ctl-plus/tablet-settings.json` for the kit to read live.
-- Display posture: tablet scale `1.75`; desktop/laptop `1.5`. Plasma retains tablet
+- Display posture: per-posture scale restored on transitions (defaults tablet `1.75`,
+  desktop/laptop `1.5`); user scale changes are never overridden. Plasma retains tablet
   rotation unless an explicit rotation intent is sent. The kit never calls
   `kscreen-doctor` directly.
 - Tablet settings: desktop-touch policy, `two_finger_hold_context_menu`, folio

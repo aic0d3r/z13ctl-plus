@@ -160,7 +160,8 @@ fallback used by the socket) for read-only use by `z13-tablet-kit`:
   "two_finger_hold_context_menu": false,
   "touchpad_enabled": false,
   "scroll_sensitivity": 3,
-  "scroll_speed": 2
+  "scroll_speed": 2,
+  "keep_display_scale": false
 }
 ```
 

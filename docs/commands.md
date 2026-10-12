@@ -172,8 +172,9 @@ z13ctl-plus display rotation none
 z13ctl-plus display rotation left
 ```
 
-Desktop and laptop use scale 1.5 and normal rotation; tablet uses scale 1.75 and
-preserves Plasma's current rotation unless an explicit rotation intent was sent.
+Scale changes only when the posture changes, restoring the scale last used in that
+posture (defaults: 1.5 desktop/laptop, 1.75 tablet); a scale set in System Settings
+is kept. Desktop and laptop use normal rotation; tablet preserves Plasma's current rotation unless an explicit rotation intent was sent.
 The coordinator combines requested refresh, scale, and rotation changes into one
 transaction for `eDP-1`, never changes external outputs, waits for dock topology
 to settle, and skips all writes while the internal panel is disabled.
@@ -188,13 +189,14 @@ Configure and report the optional `z13-tablet-kit` companion through the daemon:
 # Inspect the authoritative settings as JSON.
 z13ctl-plus tablet settings
 
-# Replace all settings atomically (all five flags are required).
+# Replace all settings atomically (all six flags are required).
 z13ctl-plus tablet settings set \
   --disable-touchscreen-in-desktop=true \
   --two-finger-hold-context-menu=false \
   --touchpad-enabled=false \
   --scroll-sensitivity=3 \
-  --scroll-speed=2
+  --scroll-speed=2 \
+  --keep-display-scale=false
 
 # Publish one live status/heartbeat (all eight flags are required).
 z13ctl-plus tablet report \
