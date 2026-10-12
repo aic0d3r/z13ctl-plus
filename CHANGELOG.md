@@ -3,6 +3,24 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## v2.3.0 (2026-10-13)
+
+- New `preset-set` command (`api.SendPresetSet`) stores explicit preset
+  values and re-applies the preset when it is active; fan curves are
+  stripped. New `preset-rename` command (`api.SendPresetRename`) keeps the
+  preset's AC/battery assignment and active marker.
+- Applying a preset continues past a failed step and reports every failure.
+- Power-source changes come from UPower `OnBattery` signals; a 30 s sysfs
+  poll remains as fallback, with a 2 s settle and 10 s retry after failures.
+- Turning power automation off restores the settings captured when it was
+  enabled (persisted, so it survives a daemon restart), unless a manual
+  change happened in between.
+- With no TDP override active, `get-state`/`tdp-get` report the profile's
+  firmware PPT instead of the stale asus-nb-wmi write cache.
+- Presets no longer capture or apply fan mode; fan-curve changes no longer
+  clear the active preset.
+- API module: `api/v1.7.0`.
+
 ## v2.2.2 (2026-10-12)
 
 - The daemon now warns when `powerprofilesctl set` fails during a profile
