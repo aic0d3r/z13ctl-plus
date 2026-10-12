@@ -3,6 +3,23 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## v2.2.2 (2026-10-12)
+
+- The daemon now warns when `powerprofilesctl set` fails during a profile
+  switch instead of discarding the error. PPD's amd-pstate driver aborts
+  profile activation when its per-policy `policy*/boost` write fails
+  (EINVAL) while the global `cpufreq/boost` file is 0 — the file
+  z13ctl-plus writes. PPD then sticks on its previous profile, so the
+  governor and CPU energy preference stop following profile switches until
+  boost is re-enabled. The warning names the remedy; the full interplay
+  (including the optional PPD mask) is documented in the installation
+  troubleshooting section.
+- Docs: PROTOCOL.md moved into `docs/protocol.md` without duplication and
+  `tdp --reset` clarified (restores the current physical profile's firmware
+  defaults, does not switch to balanced); stale AUR lag note removed,
+  api module version corrected, and missing `KeepDisplayScale` added to the
+  `docs/api.md` example.
+
 ## v2.2.1 (2026-10-12)
 
 - Display scale chosen in System Settings is no longer overwritten. The daemon
