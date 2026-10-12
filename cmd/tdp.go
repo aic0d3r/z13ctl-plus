@@ -4,6 +4,7 @@ package cmd
 // asus-nb-wmi PPT sysfs attributes. No HID access required.
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -75,8 +76,7 @@ override is active.`,
 }
 
 func runTdpGet() error {
-	profile := readCurrentProfile()
-	tdp, err := cli.ReadEffectivePPT(profile)
+	tdp, err := readTDP(readCurrentProfile())
 	if err != nil {
 		return fmt.Errorf("reading TDP: %w", err)
 	}
@@ -88,6 +88,18 @@ func runTdpGet() error {
 	fmt.Printf("  APU sPPT:           %d\n", tdp.APUSPPT)
 	fmt.Printf("  Platform sPPT:      %d\n", tdp.PlatformSPPT)
 	return nil
+}
+
+// readTDP prefers the daemon, which knows whether a TDP override is active;
+// the raw sysfs cache keeps reporting the last write after a reset.
+func readTDP(profile string) (api.TDPState, error) {
+	if handled, value, err := api.SendTdpGet(); handled && err == nil {
+		var tdp api.TDPState
+		if err := json.Unmarshal([]byte(value), &tdp); err == nil {
+			return tdp, nil
+		}
+	}
+	return cli.ReadEffectivePPT(profile)
 }
 
 func readCurrentProfile() string {

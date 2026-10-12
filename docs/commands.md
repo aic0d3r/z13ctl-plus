@@ -122,8 +122,9 @@ z13ctl-plus profile --set balanced
 ## preset
 
 Save, apply, and automatically select named performance presets. Presets capture
-the physical profile, fan/TDP/undervolt overrides, CPU minimum/EPP/boost,
-panel overdrive, and display refresh rate. The daemon must be running.
+the physical profile, TDP/undervolt overrides, CPU minimum/EPP/boost,
+panel overdrive, and display refresh rate. Fan mode is not part of a preset;
+applying one keeps the current fan mode. The daemon must be running.
 
 ```sh
 z13ctl-plus preset list

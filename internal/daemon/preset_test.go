@@ -114,3 +114,23 @@ func TestSetDefaultPowerConfiguration(t *testing.T) {
 		t.Fatalf("policy = %+v", policy)
 	}
 }
+
+func TestRestoreOnDisable(t *testing.T) {
+	snap := &api.Preset{Profile: "quiet"}
+	tests := []struct {
+		name                string
+		wasEnabled, enabled bool
+		active              string
+		want                *api.Preset
+	}{
+		{"disable untouched preset", true, false, "70W", snap},
+		{"disable after manual change", true, false, "", nil},
+		{"already disabled", false, false, "70W", nil},
+		{"stays enabled", true, true, "70W", nil},
+	}
+	for _, tt := range tests {
+		if got := restoreOnDisable(tt.wasEnabled, tt.enabled, tt.active, snap); got != tt.want {
+			t.Errorf("%s: got %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}

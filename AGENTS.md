@@ -132,10 +132,12 @@ contrib/
   `$XDG_STATE_HOME/z13ctl/state.json`, then atomically installs a copy only if
   Plus state does not exist. It does not remove the legacy file or manage units.
 - **Named presets and power policy**: Presets independently capture profile,
-  fan/TDP/undervolt, CPU min/EPP/boost, panel overdrive, and refresh rate. The
+  TDP/undervolt (never fan mode, which stays user-controlled), CPU min/EPP/boost, panel overdrive, and refresh rate. The
   daemon polls external `power_supply` devices and applies assigned AC/battery
   presets only at startup or a real source transition; manual overrides last
-  until the next transition. Refresh intent is handled by the shared display
+  until the next transition. Enabling automation snapshots the current
+  settings (in memory); disabling it re-applies that snapshot unless a manual
+  change cleared `ActivePreset` in between. Refresh intent is handled by the shared display
   coordinator rather than issuing independent KScreen writes.
 - **Shared display coordinator**: Tablet-kit publishes posture and presets publish
   refresh intent. Scale changes only on posture transitions and restores the last

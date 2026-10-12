@@ -115,9 +115,6 @@ func (d *Daemon) capturePreset() api.Preset {
 	p := api.Preset{
 		Profile: d.state.Profile,
 	}
-	if d.state.FanCurveActive {
-		p.FanCurve = cloneFanCurve(d.state.FanCurve)
-	}
 	if d.state.TDPActive {
 		p.TDP = clonePtr(d.state.TDP)
 	}
@@ -185,16 +182,24 @@ func (d *Daemon) deletePreset(name string) error {
 }
 
 func (d *Daemon) applyPreset(name string) error {
-	d.applyMu.Lock()
-	defer d.applyMu.Unlock()
-
 	d.mu.Lock()
 	preset, ok := d.state.Presets[name]
-	next := d.state
 	d.mu.Unlock()
 	if !ok {
 		return fmt.Errorf("preset %q not found", name)
 	}
+	return d.applyPresetValue(name, preset)
+}
+
+// applyPresetValue applies preset and records name as the active preset; an
+// empty name applies an unnamed snapshot.
+func (d *Daemon) applyPresetValue(name string, preset api.Preset) error {
+	d.applyMu.Lock()
+	defer d.applyMu.Unlock()
+
+	d.mu.Lock()
+	next := d.state
+	d.mu.Unlock()
 	preset = clonePreset(preset)
 	if err := validatePreset(preset); err != nil {
 		return fmt.Errorf("preset %q: %w", name, err)
@@ -202,11 +207,11 @@ func (d *Daemon) applyPreset(name string) error {
 	if err := validatePresetHardware(preset); err != nil {
 		return fmt.Errorf("preset %q: %w", name, err)
 	}
+	// Fan mode stays user-controlled: presets neither capture nor apply it,
+	// and a FanCurve stored by older versions is ignored.
 	next.Profile = preset.Profile
-	next.FanCurve = cloneFanCurve(preset.FanCurve)
 	next.TDP = clonePtr(preset.TDP)
 	next.Undervolt = clonePtr(preset.Undervolt)
-	next.FanCurveActive = preset.FanCurve != nil
 	next.TDPActive = preset.TDP != nil
 	next.UndervoltActive = preset.Undervolt != nil
 	if err := applyTuning(next, true); err != nil {
@@ -259,7 +264,11 @@ func (d *Daemon) applyPreset(name string) error {
 	if err := d.persistState(); err != nil {
 		return err
 	}
-	slog.Info("preset applied", "name", name)
+	if name == "" {
+		slog.Info("pre-automation settings restored")
+	} else {
+		slog.Info("preset applied", "name", name)
+	}
 	return nil
 }
 
@@ -403,7 +412,12 @@ func (d *Daemon) setPowerPolicy(enabled bool, acPreset, batteryPreset string) er
 		d.mu.Unlock()
 		return nil
 	}
-	applyNow := enabled && (current == nil || !current.Enabled)
+	wasEnabled := current != nil && current.Enabled
+	applyNow := enabled && !wasEnabled
+	restore := restoreOnDisable(wasEnabled, enabled, d.state.ActivePreset, d.preAutoPreset)
+	if !enabled {
+		d.preAutoPreset = nil
+	}
 	if enabled && current != nil && current.Enabled {
 		switch d.powerSource {
 		case cli.PowerSourceAC:
@@ -417,6 +431,15 @@ func (d *Daemon) setPowerPolicy(enabled bool, acPreset, batteryPreset string) er
 	d.mu.Unlock()
 	if err := d.persistState(); err != nil {
 		return err
+	}
+	if restore != nil {
+		return d.applyPresetValue("", *restore)
+	}
+	if enabled && !wasEnabled {
+		snapshot := d.capturePreset()
+		d.mu.Lock()
+		d.preAutoPreset = &snapshot
+		d.mu.Unlock()
 	}
 	if applyNow {
 		if source != cli.PowerSourceAC && source != cli.PowerSourceBattery {
@@ -437,6 +460,16 @@ func (d *Daemon) setPowerPolicy(enabled bool, acPreset, batteryPreset string) er
 		}
 	}
 	return nil
+}
+
+// restoreOnDisable returns the pre-automation snapshot to re-apply when
+// automation is turned off while its preset is still untouched. A manual
+// change clears ActivePreset, and manual overrides win.
+func restoreOnDisable(wasEnabled, enabled bool, activePreset string, snapshot *api.Preset) *api.Preset {
+	if !wasEnabled || enabled || activePreset == "" {
+		return nil
+	}
+	return snapshot
 }
 
 func (d *Daemon) clearActivePreset() {

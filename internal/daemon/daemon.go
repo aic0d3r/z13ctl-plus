@@ -41,9 +41,13 @@ type Daemon struct {
 	state       api.State
 	powerSource string
 	policyCh    chan struct{}
-	displayMu   sync.Mutex
-	display     displayIntent
-	displayCh   chan struct{}
+	// Guarded by mu: settings captured when power automation was enabled,
+	// restored when it is disabled. shortcut: in-memory only, so disabling
+	// after a daemon restart keeps the last preset; persist if that matters.
+	preAutoPreset *api.Preset
+	displayMu     sync.Mutex
+	display       displayIntent
+	displayCh     chan struct{}
 	// Guarded by applyMu. shortcut: in-memory only, so a restart forgets
 	// per-posture scales; persist in state if users want them across logins.
 	scalePosture  string

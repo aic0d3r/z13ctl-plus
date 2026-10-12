@@ -143,7 +143,7 @@ func (d *Daemon) dispatch(req request) response {
 	case "tdp":
 		return d.handleTDP(req)
 	case "tdp-get":
-		return handleTDPGet()
+		return d.handleTDPGet()
 	case "tdp-reset":
 		return d.handleTDPReset()
 	case "undervolt":
@@ -205,7 +205,7 @@ func (d *Daemon) dispatch(req request) response {
 			s.FanCurve = readFanCurveFromSysfs()
 		}
 		if !s.TDPActive {
-			if tdp, err := cli.ReadEffectivePPT(s.Profile); err == nil {
+			if tdp, err := readStockOrEffectivePPT(s.Profile); err == nil {
 				s.TDP = &tdp
 			}
 		}
@@ -753,13 +753,31 @@ func (d *Daemon) handleFanCurveReset() response {
 	return response{OK: true}
 }
 
-func handleTDPGet() response {
-	tdp, err := cli.ReadEffectivePPT(readProfileFromSysfs())
+func (d *Daemon) handleTDPGet() response {
+	d.mu.Lock()
+	active := d.state.TDPActive
+	d.mu.Unlock()
+	profile := readProfileFromSysfs()
+	read := cli.ReadEffectivePPT
+	if !active {
+		read = readStockOrEffectivePPT
+	}
+	tdp, err := read(profile)
 	if err != nil {
 		return response{OK: false, Error: "reading TDP: " + err.Error()}
 	}
 	data, _ := json.Marshal(tdp)
 	return response{OK: true, Value: string(data)}
+}
+
+// readStockOrEffectivePPT reports firmware PPT when no TDP override is active.
+// asus-nb-wmi ppt_* only cache the last write and keep it across profile
+// writes and tdp-reset, so they would report a stale override as live.
+func readStockOrEffectivePPT(profile string) (api.TDPState, error) {
+	if stock, ok := cli.StockProfilePPT[profile]; ok {
+		return stock, nil
+	}
+	return cli.ReadEffectivePPT(profile)
 }
 
 // readProfileFromSysfs reads the current platform_profile value.
