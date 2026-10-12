@@ -3,6 +3,21 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## v2.2.1 (2026-10-12)
+
+- Display scale chosen in System Settings is no longer overwritten. The daemon
+  used to re-apply 150% (desktop/laptop) or 175% (tablet) on every 30-second
+  posture re-publish from z13-tablet-kit. Scale now changes only when the
+  posture changes, and each posture restores the scale last used in it
+  (defaults: 150% desktop/laptop, 175% tablet). The first posture after the
+  daemon starts keeps KDE's scale.
+  [z13-tablet-kit#1](https://github.com/aic0d3r/z13-tablet-kit/issues/1)
+- New tablet setting `keep_display_scale` (`tablet settings set
+  --keep-display-scale`, Z13GUI+ "Keep my display scale"): when on, posture
+  changes never touch the screen scale. `tablet settings set` now requires
+  this sixth flag.
+- api v1.6.0: `TabletSettings.KeepDisplayScale`.
+
 ## v2.2.0 (2026-10-11)
 
 - Lower the high-TDP fan safety floor from 80% to 50% PWM (127), matching
