@@ -3,6 +3,18 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## v2.4.0 (2026-10-13)
+
+- Refresh-rate requests are refused with "the built-in panel is off" while
+  eDP-1 is disabled (docked with only an external display on). Previously
+  the request was accepted, did nothing, and the rate was applied on the
+  next undock. Presets still store their rate and apply it when the panel
+  returns.
+- `get-state` reports `panel_off` (eDP-1 read and disabled; not set when the
+  read fails) and `external_display` (any other output enabled), from the
+  same cached `kscreen-doctor` read as `refresh_rate`.
+- API module: `api/v1.8.0`.
+
 ## v2.3.0 (2026-10-13)
 
 - New `preset-set` command (`api.SendPresetSet`) stores explicit preset
