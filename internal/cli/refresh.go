@@ -48,10 +48,17 @@ var supportedRefreshRates = []int{60, 180}
 const refreshCacheTTL = time.Second
 
 var (
-	refreshCacheMu sync.Mutex
-	refreshCacheHz int
-	refreshCacheAt time.Time
+	refreshCacheMu      sync.Mutex
+	refreshCacheSummary DisplaySummary
+	refreshCacheAt      time.Time
 )
+
+// DisplaySummary is what the drawer needs to label its refresh-rate control.
+type DisplaySummary struct {
+	Refresh  int  // live eDP-1 rate in Hz; 0 when unknown or the panel is off
+	PanelOff bool // eDP-1 was read and is disabled (not set when the read failed)
+	External bool // at least one output other than eDP-1 is enabled
+}
 
 // InternalDisplayState is the current KScreen state for the built-in panel.
 type InternalDisplayState struct {
@@ -67,29 +74,62 @@ func SupportedRefreshRates() []int {
 }
 
 // ReadRefreshRate returns the current eDP-1 refresh rate in Hz (integer).
-// Returns 0 if kscreen-doctor is missing or eDP-1 is not connected. Results
-// are cached for one second: callers poll this per get-state request and each
-// miss would spawn a kscreen-doctor process.
+// Returns 0 if kscreen-doctor is missing or eDP-1 is not connected or enabled.
 func ReadRefreshRate() int {
+	return ReadDisplaySummary().Refresh
+}
+
+// ReadDisplaySummary reads eDP-1 and the other outputs in one kscreen-doctor
+// call. Results are cached for one second: callers poll this per get-state
+// request and each miss would spawn a kscreen-doctor process.
+func ReadDisplaySummary() DisplaySummary {
 	refreshCacheMu.Lock()
 	if time.Since(refreshCacheAt) < refreshCacheTTL {
-		hz := refreshCacheHz
+		summary := refreshCacheSummary
 		refreshCacheMu.Unlock()
-		return hz
+		return summary
 	}
 	refreshCacheMu.Unlock()
 
-	state, err := ReadInternalDisplay()
+	ctx, cancel := context.WithTimeout(context.Background(), refreshTimeout)
+	defer cancel()
+	var summary DisplaySummary
+	if out, err := kscreenCommand(ctx, "-o").CombinedOutput(); err == nil {
+		summary = summarizeDisplays(out)
+	}
 
 	refreshCacheMu.Lock()
 	defer refreshCacheMu.Unlock()
 	refreshCacheAt = time.Now()
-	refreshCacheHz = 0
-	if err == nil && state.Enabled {
-		refreshCacheHz = state.Refresh
-	}
-	return refreshCacheHz
+	refreshCacheSummary = summary
+	return summary
 }
+
+// summarizeDisplays parses kscreen-doctor -o output into a DisplaySummary.
+func summarizeDisplays(out []byte) DisplaySummary {
+	var summary DisplaySummary
+	if panel, ok := parseInternalDisplay(out); ok {
+		if panel.Enabled {
+			summary.Refresh = panel.Refresh
+		} else {
+			summary.PanelOff = true
+		}
+	}
+	out = ansiRe.ReplaceAll(out, nil)
+	for _, block := range outputRe.Split(string(out), -1)[1:] {
+		// A block starts with "<id> <name> <uuid>".
+		if fields := strings.Fields(block); len(fields) > 1 && fields[1] != outputName && enabledRe.MatchString(block) {
+			summary.External = true
+		}
+	}
+	return summary
+}
+
+var (
+	ansiRe    = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	outputRe  = regexp.MustCompile(`(?m)^Output:`)
+	enabledRe = regexp.MustCompile(`(?m)^\s*enabled\s*$`)
+)
 
 // ReadInternalDisplay returns the enabled, mode, scale, and rotation state of eDP-1.
 func ReadInternalDisplay() (InternalDisplayState, error) {
@@ -108,7 +148,7 @@ func ReadInternalDisplay() (InternalDisplayState, error) {
 
 // parseInternalDisplay extracts the eDP-1 state and current mode.
 func parseInternalDisplay(out []byte) (InternalDisplayState, bool) {
-	out = regexp.MustCompile(`\x1b\[[0-9;]*m`).ReplaceAll(out, nil)
+	out = ansiRe.ReplaceAll(out, nil)
 	// kscreen-doctor marks the active mode with a trailing "*". Example:
 	//   Modes:  1:2560x1600@180.00*  2:2560x1600@60.00  ...
 	// We look for "@<digits>.<digits>*" inside a Modes: block.
@@ -119,7 +159,7 @@ func parseInternalDisplay(out []byte) (InternalDisplayState, bool) {
 	if block == nil {
 		return InternalDisplayState{}, false
 	}
-	state := InternalDisplayState{Enabled: regexp.MustCompile(`(?m)^\s*enabled\s*$`).Match(block)}
+	state := InternalDisplayState{Enabled: enabledRe.Match(block)}
 	rateRe := regexp.MustCompile(`@(\d+)\.\d+\*`)
 	m := rateRe.FindSubmatch(block)
 	if m != nil {

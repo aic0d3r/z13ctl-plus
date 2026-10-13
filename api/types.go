@@ -32,7 +32,9 @@ type State struct {
 	PowerSource        string                   `json:"power_source,omitempty"`   // live: "ac", "battery", or ""
 	UndervoltAvailable bool                     `json:"undervolt_available"`      // true if ryzen_smu is loaded
 	CPUPower           *CPUPowerState           `json:"cpu_power,omitempty"`
-	RefreshRate        int                      `json:"refresh_rate,omitempty"` // eDP-1 refresh rate in Hz (0 = unknown)
+	RefreshRate        int                      `json:"refresh_rate,omitempty"`     // eDP-1 refresh rate in Hz (0 = unknown)
+	PanelOff           bool                     `json:"panel_off,omitempty"`        // eDP-1 is disabled (e.g. docked with only an external display on)
+	ExternalDisplay    bool                     `json:"external_display,omitempty"` // an output other than eDP-1 is enabled
 	BatteryDetail      *BatteryState            `json:"battery_detail,omitempty"`
 	Temperature        int                      `json:"temperature,omitempty"` // APU temp, degrees Celsius (legacy; also in Telemetry)
 	FanRPM             int                      `json:"fan_rpm,omitempty"`     // fan1 speed in RPM (legacy; also in Telemetry)

@@ -44,12 +44,13 @@ func TestDisplayIntentValidation(t *testing.T) {
 }
 
 // fakeKScreen installs a kscreen-doctor stub reporting the scale in
-// $Z13CTL_SCALE and recording apply arguments in the returned file.
+// $Z13CTL_SCALE (panel state in $Z13CTL_PANEL, default enabled) and
+// recording apply arguments in the returned file.
 func fakeKScreen(t *testing.T, scale string) string {
 	t.Helper()
 	dir := t.TempDir()
 	argsPath := filepath.Join(dir, "args")
-	script := "#!/bin/sh\nif [ \"$1\" = \"-o\" ]; then\n  printf 'Output: 1 eDP-1 abc\\n\\tenabled\\n\\tModes: 1:2560x1600@180.00*\\n\\tScale: %s\\n\\tRotation: 2\\n' \"$Z13CTL_SCALE\"\n  exit 0\nfi\nprintf '%s\\n' \"$*\" > \"$Z13CTL_ARGS\"\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"-o\" ]; then\n  printf 'Output: 1 eDP-1 abc\\n\\t%s\\n\\tModes: 1:2560x1600@180.00*\\n\\tScale: %s\\n\\tRotation: 2\\n' \"${Z13CTL_PANEL:-enabled}\" \"$Z13CTL_SCALE\"\n  exit 0\nfi\nprintf '%s\\n' \"$*\" > \"$Z13CTL_ARGS\"\n"
 	if err := os.WriteFile(filepath.Join(dir, "kscreen-doctor"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -120,5 +121,28 @@ func TestReconcileDisplayKeepScaleNeverChangesScale(t *testing.T) {
 	d.state.TabletSettings.KeepDisplayScale = true
 	if got := reconcileArgs(t, d, argsPath, "tablet"); got != "" {
 		t.Fatalf("keep-scale reconcile applied %q", got)
+	}
+}
+
+func TestHandleRefreshRateRefusesWhilePanelOff(t *testing.T) {
+	fakeKScreen(t, "1.5")
+	t.Setenv("Z13CTL_PANEL", "disabled")
+	d := &Daemon{displayCh: make(chan struct{}, 1)}
+	resp := d.handleRefreshRate(request{Cmd: "refresh-rate", Set: "60"})
+	if resp.OK || resp.Error != "the built-in panel is off" {
+		t.Fatalf("handleRefreshRate() = %+v, want panel-off refusal", resp)
+	}
+	if d.display.refresh != 0 {
+		t.Fatalf("refused request stored intent %d Hz", d.display.refresh)
+	}
+}
+
+func TestPresetRefreshStillQueuesWhilePanelOff(t *testing.T) {
+	fakeKScreen(t, "1.5")
+	t.Setenv("Z13CTL_PANEL", "disabled")
+	d := &Daemon{displayCh: make(chan struct{}, 1)}
+	// Preset apply uses setDisplayRefresh directly: its rate applies once the panel returns.
+	if err := d.setDisplayRefresh(60); err != nil || d.display.refresh != 60 {
+		t.Fatalf("setDisplayRefresh(60) = %v, intent %d", err, d.display.refresh)
 	}
 }

@@ -233,8 +233,11 @@ func (d *Daemon) dispatch(req request) response {
 		}
 		// Populate live telemetry (CPU/GPU temp, util, clocks, VRAM, mem clock).
 		s.Telemetry = cli.ReadTelemetry()
-		// Populate eDP-1 refresh rate from kscreen-doctor.
-		s.RefreshRate = cli.ReadRefreshRate()
+		// Populate eDP-1 refresh rate and panel/external state from kscreen-doctor.
+		display := cli.ReadDisplaySummary()
+		s.RefreshRate = display.Refresh
+		s.PanelOff = display.PanelOff
+		s.ExternalDisplay = display.External
 		// Populate battery detail (health, power draw, status).
 		if bat, err := cli.ReadBatteryState(); err == nil {
 			s.BatteryDetail = bat
@@ -375,6 +378,11 @@ func (d *Daemon) handleRefreshRate(req request) response {
 	hz, err := strconv.Atoi(req.Set)
 	if err != nil {
 		return response{OK: false, Error: "refresh rate must be an integer in Hz"}
+	}
+	// Refuse instead of storing an intent that would fire on the next undock.
+	// Presets skip this check: their rate is meant to apply when the panel returns.
+	if panel, err := cli.ReadInternalDisplay(); err == nil && !panel.Enabled {
+		return response{OK: false, Error: "the built-in panel is off"}
 	}
 	if err := d.setDisplayRefresh(hz); err != nil {
 		return response{OK: false, Error: err.Error()}
