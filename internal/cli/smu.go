@@ -95,31 +95,40 @@ func SendSMUCommand(mailbox string, cmdID uint32, args [6]uint32) (code uint32, 
 	return code, outArgs, nil
 }
 
-// smuProbeOnce ensures the undervolt probe runs only once.
+// smuProbe* cache the undervolt probe result (see SMUProbeUndervolt).
 var (
-	smuProbeOnce sync.Once
+	smuProbeMu   sync.Mutex
+	smuProbeDone bool
 	smuProbeOK   bool
 )
 
 // SMUProbeUndervolt sends a safe no-op CO command (offset 0) to verify that
 // the installed ryzen_smu module supports Curve Optimizer on this platform.
 // Returns true if the command succeeds, false if the module is missing or
-// returns an error (e.g. wrong fork). The result is cached after the first call.
+// returns an error (e.g. wrong fork). A firmware answer is cached; I/O errors are retried.
 func SMUProbeUndervolt() bool {
 	if !SMUAvailable() {
 		return false
 	}
-	smuProbeOnce.Do(func() {
-		encoded := encodeCOValue(0)
-		args := [6]uint32{encoded}
-		resp, _, err := SendSMUCommand(MailboxMP1, smuCmdMP1COALL, args)
-		smuProbeOK = err == nil && resp == SMUReturnOK
-		if !smuProbeOK {
+	smuProbeMu.Lock()
+	defer smuProbeMu.Unlock()
+	if smuProbeDone {
+		return smuProbeOK
+	}
+	encoded := encodeCOValue(0)
+	args := [6]uint32{encoded}
+	resp, _, err := SendSMUCommand(MailboxMP1, smuCmdMP1COALL, args)
+	ok := err == nil && resp == SMUReturnOK
+	// Only a firmware answer is final; I/O or permission errors (e.g. perms
+	// not applied yet) are retried on the next call.
+	if err == nil {
+		smuProbeDone, smuProbeOK = true, ok
+		if !ok {
 			slog.Warn("SMU undervolt probe failed — Curve Optimizer will be disabled",
-				"resp", fmt.Sprintf("0x%X", resp), "err", err)
+				"resp", fmt.Sprintf("0x%X", resp))
 		}
-	})
-	return smuProbeOK
+	}
+	return ok
 }
 
 // smuResponseError returns a human-readable error for a non-OK SMU response.

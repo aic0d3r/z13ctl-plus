@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/coreos/go-systemd/v22/activation"
@@ -191,6 +192,14 @@ func (d *Daemon) getListener() (net.Listener, error) {
 	if mkdirErr := os.MkdirAll(filepath.Dir(sock), 0o750); mkdirErr != nil {
 		return nil, mkdirErr
 	}
+	if !ownedByMe(filepath.Dir(sock)) {
+		return nil, fmt.Errorf("socket directory %s is not owned by the current user", filepath.Dir(sock))
+	}
+	// Never delete a socket another daemon is still serving.
+	if c, dialErr := net.DialTimeout("unix", sock, time.Second); dialErr == nil {
+		_ = c.Close()
+		return nil, fmt.Errorf("daemon already running on %s", sock)
+	}
 	_ = os.Remove(sock)
 	ln, err := net.Listen("unix", sock)
 	if err != nil {
@@ -330,4 +339,15 @@ func (d *Daemon) applyLightingState() error {
 		slog.Info("lighting restored (off)", "zone", "all")
 	}
 	return nil
+}
+
+// ownedByMe reports whether dir is owned by the current user, so the /tmp
+// fallback cannot be pre-created by another local user.
+func ownedByMe(dir string) bool {
+	fi, err := os.Stat(dir)
+	if err != nil {
+		return false
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	return ok && int(st.Uid) == os.Getuid()
 }

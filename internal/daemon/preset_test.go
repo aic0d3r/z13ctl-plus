@@ -154,3 +154,10 @@ func TestRenamePresetInState(t *testing.T) {
 		t.Fatal("old name still present")
 	}
 }
+
+func TestValidatePresetRejectsPL1AboveSafeMax(t *testing.T) {
+	p := api.Preset{Profile: "balanced", TDP: &api.TDPState{PL1SPL: 90, PL2SPPT: 90, FPPT: 90}}
+	if err := validatePreset(p); err == nil {
+		t.Fatal("PL1 90W accepted without force")
+	}
+}

@@ -413,10 +413,9 @@ func validatePreset(p api.Preset) error {
 		}
 	}
 	if p.TDP != nil {
-		for _, watts := range []int{p.TDP.PL1SPL, p.TDP.PL2SPPT, p.TDP.FPPT} {
-			if watts < cli.TDPMin || watts > cli.TDPMaxForced {
-				return fmt.Errorf("TDP %dW out of range %d-%d", watts, cli.TDPMin, cli.TDPMaxForced)
-			}
+		// Presets carry no force flag, so they get the same limit as an unforced tdp command.
+		if err := cli.ValidateTDP(p.TDP.PL1SPL, p.TDP.PL2SPPT, p.TDP.FPPT, false); err != nil {
+			return err
 		}
 	}
 	if p.Undervolt != nil {
