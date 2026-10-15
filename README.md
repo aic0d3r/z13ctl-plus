@@ -100,8 +100,8 @@ sudo apt install ./z13ctl-plus_*.deb
 sudo dnf install ./z13ctl-plus_*.rpm
 
 # Manual (from release tarball)
-wget https://github.com/aic0d3r/z13ctl-plus/releases/download/v2.2.1/z13ctl-plus_2.2.1_linux_amd64.tar.gz
-tar xzf z13ctl-plus_2.2.1_linux_amd64.tar.gz
+wget https://github.com/aic0d3r/z13ctl-plus/releases/download/v2.5.0/z13ctl-plus_2.5.0_linux_amd64.tar.gz
+tar xzf z13ctl-plus_2.5.0_linux_amd64.tar.gz
 sudo install -Dm755 z13ctl-plus /usr/local/bin/z13ctl-plus
 sudo z13ctl-plus setup
 

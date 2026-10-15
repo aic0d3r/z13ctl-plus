@@ -3,13 +3,17 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
-## Unreleased
+## v2.5.0 (2026-10-16)
 
+- Commands that need missing hardware (charge limit, boot sound, panel
+  overdrive, fan curve, TDP) answer `not supported on this machine: no <what>`
+  instead of a raw sysfs error.
+- A fresh install starts even when cpufreq is unreadable.
 - `get-state` reports `capabilities` (profile, fan curve, TDP, battery, charge
   limit, boot sound, panel overdrive, internal display) so clients can hide
   controls the machine does not have, e.g. on an AMD Strix Halo desktop.
   The object is absent from older daemons; read that as "everything present".
-  API module: needs a new `api/v1.9.0` tag.
+  API module: `api/v1.9.0`.
 
 ## v2.4.0 (2026-10-13)
 
