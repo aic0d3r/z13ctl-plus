@@ -36,11 +36,28 @@ type State struct {
 	PanelOff           bool                     `json:"panel_off,omitempty"`        // eDP-1 is disabled (e.g. docked with only an external display on)
 	ExternalDisplay    bool                     `json:"external_display,omitempty"` // an output other than eDP-1 is enabled
 	BatteryDetail      *BatteryState            `json:"battery_detail,omitempty"`
-	Temperature        int                      `json:"temperature,omitempty"` // APU temp, degrees Celsius (legacy; also in Telemetry)
-	FanRPM             int                      `json:"fan_rpm,omitempty"`     // fan1 speed in RPM (legacy; also in Telemetry)
-	Telemetry          *TelemetryState          `json:"telemetry,omitempty"`   // live sensor readings
+	Capabilities       *Capabilities            `json:"capabilities,omitempty"` // live: which controls this machine has; nil from older daemons (assume all present)
+	Temperature        int                      `json:"temperature,omitempty"`  // APU temp, degrees Celsius (legacy; also in Telemetry)
+	FanRPM             int                      `json:"fan_rpm,omitempty"`      // fan1 speed in RPM (legacy; also in Telemetry)
+	Telemetry          *TelemetryState          `json:"telemetry,omitempty"`    // live sensor readings
 	TabletSettings     TabletSettings           `json:"tablet_settings"`
 	TabletIntegration  *TabletIntegration       `json:"tablet_integration,omitempty"` // live companion status; never persisted
+}
+
+// Capabilities reports which hardware controls exist on this machine, so clients
+// can hide what does not apply (e.g. an AMD Strix Halo desktop without a battery,
+// ASUS firmware attributes, or an internal panel). Lighting is reported by
+// State.DevicePresence, CPU policy by State.CPUPower, undervolt by
+// State.UndervoltAvailable.
+type Capabilities struct {
+	Profile        bool `json:"profile"`         // platform_profile exists
+	FanCurve       bool `json:"fan_curve"`       // custom fan curve hwmon exists
+	TDP            bool `json:"tdp"`             // asus-nb-wmi PPT attributes exist
+	Battery        bool `json:"battery"`         // a battery is present
+	BatteryLimit   bool `json:"battery_limit"`   // charge end threshold is available
+	BootSound      bool `json:"boot_sound"`      // asus-armoury boot sound attribute exists
+	PanelOverdrive bool `json:"panel_overdrive"` // asus-armoury panel overdrive attribute exists
+	Display        bool `json:"display"`         // an internal panel (eDP-1) was read
 }
 
 // TabletSettings configures the optional z13-tablet-kit companion.

@@ -149,6 +149,13 @@ minimum, EPP, boost, and available limits), and `undervolt_available`
 (whether the `ryzen_smu` kernel module is present) from live sysfs reads.
 These are not persisted — they are real-time sensor values.
 
+`get-state` also reports `capabilities`: one boolean per control that is not
+already implied by another field (`profile`, `fan_curve`, `tdp`, `battery`,
+`battery_limit`, `boot_sound`, `panel_overdrive`, `display`). Clients hide the
+controls whose flag is false; lighting is reported by `device_presence`, CPU
+policy by `cpu_power`, undervolt by `undervolt_available`. Older daemons omit the
+object, which clients must read as "everything present".
+
 The latest `tablet_integration` heartbeat is likewise live-only and is empty
 after a daemon restart. Tablet settings are also projected atomically with mode
 `0600` to `$XDG_RUNTIME_DIR/z13ctl-plus/tablet-settings.json` (or the `/tmp`

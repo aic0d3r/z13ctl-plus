@@ -242,6 +242,9 @@ func (d *Daemon) dispatch(req request) response {
 		if bat, err := cli.ReadBatteryState(); err == nil {
 			s.BatteryDetail = bat
 		}
+		// Tell clients which controls exist here (desktop Strix Halo has no battery,
+		// ASUS firmware attributes, or internal panel).
+		s.Capabilities = cli.DetectCapabilities(display, s.BatteryDetail != nil)
 		d.mu.Lock()
 		s.PowerSource = d.powerSource
 		d.mu.Unlock()

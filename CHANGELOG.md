@@ -3,6 +3,14 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## Unreleased
+
+- `get-state` reports `capabilities` (profile, fan curve, TDP, battery, charge
+  limit, boot sound, panel overdrive, internal display) so clients can hide
+  controls the machine does not have, e.g. on an AMD Strix Halo desktop.
+  The object is absent from older daemons; read that as "everything present".
+  API module: needs a new `api/v1.9.0` tag.
+
 ## v2.4.0 (2026-10-13)
 
 - Refresh-rate requests are refused with "the built-in panel is off" while
