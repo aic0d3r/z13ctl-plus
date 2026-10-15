@@ -8,6 +8,11 @@
     touch-friendly graphical frontend that exposes all of these commands as
     point-and-tap controls.
 
+!!! note "Hardware-dependent commands"
+    `batterylimit`, `bootsound`, `paneloverdrive`, `fancurve` and `tdp` need ASUS
+    or battery interfaces. On a machine without them the daemon answers
+    `not supported on this machine: no <what>`.
+
 ## Global Flags
 
 These flags apply to every command.

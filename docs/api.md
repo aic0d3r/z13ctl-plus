@@ -169,8 +169,16 @@ if handled && err == nil {
     fmt.Println("fan RPM:", state.FanRPM)
     fmt.Println("tablet settings:", state.TabletSettings)
     fmt.Println("tablet integration:", state.TabletIntegration) // latest live report, if any
+    // nil from daemons older than v2.5.0: treat every control as present.
+    if c := state.Capabilities; c != nil {
+        fmt.Println("has battery:", c.Battery, "has fan curve:", c.FanCurve)
+    }
 }
 ```
+
+`Capabilities` (API v1.9.0) lets clients hide controls the machine lacks. Lighting
+is reported by `DevicePresence`, CPU policy by `CPUPower`, and undervolt by
+`UndervoltAvailable`.
 
 **Subscribe to daemon events:**
 
