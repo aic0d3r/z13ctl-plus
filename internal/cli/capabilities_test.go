@@ -2,6 +2,22 @@ package cli
 
 import "testing"
 
+func TestUnsupported(t *testing.T) {
+	for _, cmd := range []string{"apply", "get-state", "profile", "cpu-boost", "no-such-command"} {
+		if got := Unsupported(cmd); got != "" {
+			t.Errorf("Unsupported(%q) = %q, want empty", cmd, got)
+		}
+	}
+	if len(commandNeeds) != 12 {
+		t.Errorf("expected 12 hardware-gated commands, got %d", len(commandNeeds))
+	}
+	for cmd, need := range commandNeeds {
+		if (Unsupported(cmd) == "") != need.has() {
+			t.Errorf("Unsupported(%q) disagrees with its probe", cmd)
+		}
+	}
+}
+
 func TestDetectCapabilitiesFromReads(t *testing.T) {
 	cases := []struct {
 		name    string

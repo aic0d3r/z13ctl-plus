@@ -98,6 +98,9 @@ func (d *Daemon) handleConn(conn net.Conn) {
 }
 
 func (d *Daemon) dispatch(req request) response {
+	if what := cli.Unsupported(req.Cmd); what != "" {
+		return response{OK: false, Error: "not supported on this machine: no " + what}
+	}
 	if commandNeedsApplyLock(req.Cmd) {
 		d.applyMu.Lock()
 		defer d.applyMu.Unlock()

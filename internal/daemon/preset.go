@@ -26,13 +26,17 @@ func (d *Daemon) seedDefaultPresets(fresh bool) error {
 		return nil
 	}
 
-	cpu, err := cli.ReadCPUPower()
-	if err != nil {
-		return fmt.Errorf("read CPU hardware limits: %w", err)
+	// Without readable cpufreq (unusual hardware, containers) the daemon must still
+	// start: seed the presets with a zero floor and let the CPU step fail on apply.
+	minKHz := 0
+	if cpu, err := cli.ReadCPUPower(); err != nil {
+		slog.Warn("cpufreq unreadable; seeding default presets without a CPU frequency floor", "err", err)
+	} else {
+		minKHz = cpu.MinLimitKHz
 	}
 
 	d.mu.Lock()
-	setDefaultPowerConfiguration(&d.state, cpu.MinLimitKHz)
+	setDefaultPowerConfiguration(&d.state, minKHz)
 	d.mu.Unlock()
 	return d.persistState()
 }
