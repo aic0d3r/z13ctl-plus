@@ -1,4 +1,4 @@
-# z13ctl+ — RGB, fan curves, TDP & undervolt control for the ASUS ROG Flow Z13
+# z13ctl+ — RGB, fan curves, TDP & undervolt control for the ASUS ROG Flow Z13 and AMD Strix Halo
 
 <div align="center">
 
@@ -20,6 +20,13 @@ lightbar lighting, custom fan curves, TDP/PPT power limits, CPU undervolting
 via Curve Optimizer, battery charge limiting, boot sound and panel overdrive,
 plus power automation, AMD P-State policy, coordinated display state, and
 telemetry — through one CLI and a systemd user daemon.
+
+Built for the Z13, and the daemon **reports what the machine actually has**
+(`capabilities` in `get-state`). On other AMD Strix Halo hardware it starts
+without ASUS interfaces, answers "not supported on this machine" for controls it
+cannot drive, and lets clients such as Z13GUI+ hide them. That support is
+experimental until more machines are reported — see
+[Compatibility](#compatibility).
 
 `z13ctl-plus` is an independently named fork of
 [`dahui/z13ctl`](https://github.com/dahui/z13ctl) with its own command, socket,
@@ -48,6 +55,18 @@ compatible; client integration details are in the
 > [Z13GUI+](https://github.com/aic0d3r/z13gui-plus).** It exposes power automation,
 > CPU policy, expanded telemetry, refresh rate, and tuning controls through the
 > daemon. Display posture/rotation and scripting remain CLI/API workflows.
+
+## Compatibility
+
+| Machine | Status |
+|---------|--------|
+| ASUS ROG Flow Z13 (2025, GZ302) | **Supported** — every control |
+| Other AMD Strix Halo laptop or mini PC | **Experimental** — telemetry, CPU policy and (with `ryzen_smu`) undervolt should work; lighting, fan curves, TDP, boot sound, panel overdrive and charge limit need ASUS hardware interfaces |
+| Anything else | Not supported |
+
+Commands for missing hardware fail with `not supported on this machine: no <what>`.
+If you try it on another machine, please open a
+[compatibility report](https://github.com/aic0d3r/z13ctl-plus/issues/new?template=compatibility_report.md).
 
 ## Tablet stack
 
