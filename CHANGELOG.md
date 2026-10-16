@@ -3,6 +3,12 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## v2.5.1 (2026-10-16)
+
+- Resume restores the power-policy preset for the current power source when
+  it changed during sleep (e.g. unplugged while asleep). Previously the AC
+  preset was reapplied for about a second before the battery preset took over.
+
 ## v2.5.0 (2026-10-16)
 
 - Commands that need missing hardware (charge limit, boot sound, panel
