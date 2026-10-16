@@ -14,9 +14,11 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/dahui/z13ctl/api"
 	"github.com/godbus/dbus/v5"
 
 	"github.com/aic0d3r/z13ctl-plus/internal/aura"
+	"github.com/aic0d3r/z13ctl-plus/internal/cli"
 )
 
 // watchResume connects to the system DBus and listens for resume events.
@@ -144,8 +146,16 @@ func lidOpened(sig *dbus.Signal) bool {
 func (d *Daemon) restoreVolatileState() {
 	d.mu.Lock()
 	state := d.state
+	prevSource := d.powerSource
 	d.mu.Unlock()
 	defer d.requestDisplayReconcile()
+
+	// The power source may have changed while asleep (e.g. unplugged); restore
+	// the preset assigned to the current source rather than briefly applying
+	// the stale one before the policy watcher catches up.
+	if source, err := cli.ReadPowerSource(); err == nil {
+		state.ActivePreset = resumePreset(state, prevSource, source)
+	}
 
 	// Restore lighting (lost on sleep regardless of profile). restoreLighting
 	// takes applyMu then d.mu around the device use, matching the dispatch
@@ -168,6 +178,20 @@ func (d *Daemon) restoreVolatileState() {
 	} else {
 		slog.Info("resume: tuning restored", "profile", state.Profile)
 	}
+}
+
+// resumePreset returns the preset to restore after resume: the policy's
+// preset for the current source if the source changed while asleep and power
+// automation is on, otherwise the preset that was active before sleep.
+func resumePreset(state api.State, prevSource, source string) string {
+	p := state.PowerPolicy
+	if source == prevSource || p == nil || !p.Enabled {
+		return state.ActivePreset
+	}
+	if source == cli.PowerSourceAC {
+		return p.ACPreset
+	}
+	return p.BatteryPreset
 }
 
 // restoreLighting reapplies the current lighting config. Used on lid-open when
