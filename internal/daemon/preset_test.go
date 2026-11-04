@@ -197,7 +197,7 @@ func TestNextDisplayBackoff(t *testing.T) {
 	if backoff != displayMaxBackoff {
 		t.Fatalf("backoff after repeated failures = %v, want %v", backoff, displayMaxBackoff)
 	}
-	if backoff, next := nextDisplayBackoff(backoff, nil); backoff != 0 || !next.IsZero() {
-		t.Fatalf("success did not reset backoff: %v %v", backoff, next)
+	if reset, next := nextDisplayBackoff(backoff, nil); reset != 0 || !next.IsZero() {
+		t.Fatalf("success did not reset backoff: %v %v", reset, next)
 	}
 }
