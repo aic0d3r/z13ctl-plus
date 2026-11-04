@@ -95,6 +95,10 @@ func setPPD(asusProfile string) {
 	if err != nil {
 		return
 	}
+	// PPD installed but not running (stopped or masked): nothing to sync.
+	if exec.Command(bin, "get").Run() != nil {
+		return
+	}
 	if out, err := exec.Command(bin, "set", ppd).CombinedOutput(); err != nil {
 		// PPD's amd-pstate driver restores profiles by writing per-policy
 		// boost files, which the kernel rejects (EINVAL) while the global
