@@ -16,6 +16,7 @@ import (
 const (
 	displayRetryInterval = 2 * time.Second
 	dockSettleInterval   = 10 * time.Second
+	displayMaxBackoff    = time.Minute // no KScreen (GNOME, Gamescope) or no eDP-1
 )
 
 type displayIntent struct {
@@ -90,19 +91,23 @@ func (d *Daemon) watchDisplay(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	dirty := false
+	var backoff time.Duration
+	var nextTry time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-d.displayCh:
 			dirty = true
+			backoff, nextTry = 0, time.Time{} // a fresh intent tries now
 		case <-ticker.C:
-			if !dirty {
+			if !dirty || time.Now().Before(nextTry) {
 				continue
 			}
 			displayed, retry, err := d.reconcileDisplay()
-			if err != nil {
-				slog.Warn("display reconciliation failed", "err", err)
+			backoff, nextTry = nextDisplayBackoff(backoff, err)
+			if err != nil && backoff == time.Second {
+				slog.Warn("display reconciliation failed; retrying with backoff", "err", err)
 			}
 			if displayed {
 				slog.Info("display intent applied")
@@ -110,6 +115,16 @@ func (d *Daemon) watchDisplay(ctx context.Context) {
 			dirty = retry
 		}
 	}
+}
+
+// nextDisplayBackoff doubles the retry delay after each failed reconcile (1 s
+// up to displayMaxBackoff) and clears it on success.
+func nextDisplayBackoff(backoff time.Duration, err error) (time.Duration, time.Time) {
+	if err == nil {
+		return 0, time.Time{}
+	}
+	backoff = min(max(2*backoff, time.Second), displayMaxBackoff)
+	return backoff, time.Now().Add(backoff)
 }
 
 // reconcileDisplay returns whether it changed KScreen state and whether it

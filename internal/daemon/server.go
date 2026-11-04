@@ -202,8 +202,8 @@ func (d *Daemon) dispatch(req request) response {
 			"lightbar": hid.HasDevice("lightbar"),
 		}
 		// Populate firmware-managed fields from sysfs (not cached in daemon state).
-		s.BootSound = readIntSysfs(cli.FindBootSoundPath())
-		s.PanelOverdrive = readIntSysfs(cli.FindPanelOverdrivePath())
+		s.BootSound, _ = readOptionalInt(cli.FindBootSoundPath())
+		s.PanelOverdrive, _ = readOptionalInt(cli.FindPanelOverdrivePath())
 		if cpuPower, err := cli.ReadCPUPower(); err == nil {
 			s.CPUPower = &cpuPower
 		}
@@ -227,15 +227,11 @@ func (d *Daemon) dispatch(req request) response {
 		}
 		// Indicate whether undervolt is available (ryzen_smu loaded + commands work).
 		s.UndervoltAvailable = cli.SMUProbeUndervolt()
-		// Populate APU temperature and fan RPM from sysfs.
-		if temp, err := cli.ReadAPUTemperature(); err == nil {
-			s.Temperature = temp
-		}
-		if rpms, err := cli.ReadBothFanRPM(); err == nil {
-			s.FanRPM = rpms[0]
-		}
 		// Populate live telemetry (CPU/GPU temp, util, clocks, VRAM, mem clock).
 		s.Telemetry = cli.ReadTelemetry()
+		// Legacy top-level fields mirror telemetry (0 when unreadable).
+		s.Temperature = s.Telemetry.CPUTemp
+		s.FanRPM = s.Telemetry.CPUFanRPM
 		// Populate eDP-1 refresh rate and panel/external state from kscreen-doctor.
 		display := cli.ReadDisplaySummary()
 		s.RefreshRate = display.Refresh
@@ -439,6 +435,7 @@ func (d *Daemon) handleApply(req request) response {
 		return response{OK: false, Error: fmt.Sprintf("brightness %d out of range 0–3", req.Brightness)}
 	}
 
+	defer d.broadcast(response{Event: "state-changed"}) // runs after d.mu unlocks
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -486,6 +483,7 @@ func (d *Daemon) handleApply(req request) response {
 }
 
 func (d *Daemon) handleOff(req request) response {
+	defer d.broadcast(response{Event: "state-changed"}) // runs after d.mu unlocks
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -527,6 +525,7 @@ func (d *Daemon) handleBrightness(req request) response {
 		return response{OK: false, Error: fmt.Sprintf("brightness %d out of range 0–3", req.Brightness)}
 	}
 
+	defer d.broadcast(response{Event: "state-changed"}) // runs after d.mu unlocks
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -679,13 +678,6 @@ func (d *Daemon) handlePanelOverdrive(req request) response {
 	return response{OK: true}
 }
 
-// readIntSysfs parses a sysfs integer, returning 0 on any error.
-func readIntSysfs(path string) int {
-	value, _ := cli.ReadTrimmedFile(path)
-	v, _ := strconv.Atoi(value)
-	return v
-}
-
 // handleFanCurveGet reads the current fan curve from sysfs (both fans).
 func handleFanCurveGet() response {
 	fc := readFanCurveFromSysfs()
@@ -765,9 +757,8 @@ func (d *Daemon) handleFanCurveReset() response {
 	d.mu.Lock()
 	d.state.FanCurve = nil
 	d.state.FanCurveActive = false
-	s := d.state
 	d.mu.Unlock()
-	if err := saveState(s); err != nil {
+	if err := d.persistState(); err != nil {
 		slog.Warn("failed to save state", "err", err)
 	}
 	return response{OK: true}
@@ -775,14 +766,18 @@ func (d *Daemon) handleFanCurveReset() response {
 
 func (d *Daemon) handleTDPGet() response {
 	d.mu.Lock()
-	active := d.state.TDPActive
-	d.mu.Unlock()
-	profile := readProfileFromSysfs()
-	read := cli.ReadEffectivePPT
-	if !active {
-		read = readStockOrEffectivePPT
+	var active *api.TDPState
+	if d.state.TDPActive {
+		active = clonePtr(d.state.TDP)
 	}
-	tdp, err := read(profile)
+	d.mu.Unlock()
+	if active != nil {
+		// The applied override is the truth; sysfs reading 5 W looks like the
+		// kernel's unset cache and would be replaced by stock values.
+		data, _ := json.Marshal(active)
+		return response{OK: true, Value: string(data)}
+	}
+	tdp, err := readStockOrEffectivePPT(readProfileFromSysfs())
 	if err != nil {
 		return response{OK: false, Error: "reading TDP: " + err.Error()}
 	}

@@ -173,11 +173,12 @@ func (d *Daemon) savePreset(name string) error {
 
 func (d *Daemon) deletePreset(name string) error {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	if _, ok := d.state.Presets[name]; !ok {
+		d.mu.Unlock()
 		return fmt.Errorf("preset %q not found", name)
 	}
 	if policy := d.state.PowerPolicy; policy != nil && (policy.ACPreset == name || policy.BatteryPreset == name) {
+		d.mu.Unlock()
 		return fmt.Errorf("preset %q is assigned by the power policy", name)
 	}
 	presets := clonePresetMap(d.state.Presets)
@@ -186,7 +187,8 @@ func (d *Daemon) deletePreset(name string) error {
 	if d.state.ActivePreset == name {
 		d.state.ActivePreset = ""
 	}
-	return saveState(d.state)
+	d.mu.Unlock()
+	return d.persistState()
 }
 
 // renamePreset renames a preset, carrying over its power-policy assignments
@@ -399,19 +401,7 @@ func validatePreset(p api.Preset) error {
 	if p.PanelOverdrive != nil && *p.PanelOverdrive != 0 && *p.PanelOverdrive != 1 {
 		return fmt.Errorf("panel overdrive must be 0 or 1")
 	}
-	if p.FanCurve != nil {
-		if p.FanCurve.Mode != 1 || len(p.FanCurve.Points) != 8 {
-			return fmt.Errorf("fan curve must contain 8 custom points")
-		}
-		for i, point := range p.FanCurve.Points {
-			if point.Temp < 0 || point.Temp > 120 || point.PWM < 0 || point.PWM > 255 {
-				return fmt.Errorf("invalid fan curve point %d:%d", point.Temp, point.PWM)
-			}
-			if i > 0 && (point.Temp <= p.FanCurve.Points[i-1].Temp || point.PWM < p.FanCurve.Points[i-1].PWM) {
-				return fmt.Errorf("fan curve temperatures and PWM must be non-decreasing")
-			}
-		}
-	}
+	// FanCurve is not validated: presets never apply it (legacy field only).
 	if p.TDP != nil {
 		// Presets carry no force flag, so they get the same limit as an unforced tdp command.
 		if err := cli.ValidateTDP(p.TDP.PL1SPL, p.TDP.PL2SPPT, p.TDP.FPPT, false); err != nil {
@@ -652,7 +642,8 @@ func (d *Daemon) watchPowerPolicy(ctx context.Context) {
 		case <-d.powerCh:
 		case <-timer.C:
 		}
-		d.checkPowerPolicy(&observedSource, &lastAppliedSource, &force, &nextApply)
+		source, err := cli.ReadPowerSource()
+		d.checkPowerPolicy(source, err, &observedSource, &lastAppliedSource, &force, &nextApply)
 		wait := powerPolicyPollInterval
 		if force {
 			wait = max(time.Until(nextApply), 100*time.Millisecond)
@@ -661,9 +652,11 @@ func (d *Daemon) watchPowerPolicy(ctx context.Context) {
 	}
 }
 
-func (d *Daemon) checkPowerPolicy(observedSource, lastAppliedSource *string, force *bool, nextApply *time.Time) {
-	source, err := cli.ReadPowerSource()
+// checkPowerPolicy must leave force false, or push nextApply out, on every
+// path that cannot apply; otherwise the watcher re-polls every 100 ms.
+func (d *Daemon) checkPowerPolicy(source string, err error, observedSource, lastAppliedSource *string, force *bool, nextApply *time.Time) {
 	if err != nil {
+		*nextApply = time.Now().Add(powerPolicyRetry)
 		return
 	}
 	d.mu.Lock()
@@ -689,7 +682,11 @@ func (d *Daemon) checkPowerPolicy(observedSource, lastAppliedSource *string, for
 		}
 		return
 	}
-	if policy == nil || !policy.Enabled || (!*force && source == *lastAppliedSource) {
+	if policy == nil || !policy.Enabled {
+		*force = false
+		return
+	}
+	if !*force && source == *lastAppliedSource {
 		return
 	}
 	if time.Now().Before(*nextApply) {

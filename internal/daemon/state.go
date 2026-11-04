@@ -164,15 +164,14 @@ func migrateState(s *api.State, physicalProfile string) bool {
 					preset.Profile = "balanced"
 				}
 			case isPhysicalProfile(preset.Profile):
-				preset.FanCurve = nil
 				preset.TDP = nil
 				preset.Undervolt = nil
 			default:
 				preset.Profile = "balanced"
-				preset.FanCurve = nil
 				preset.TDP = nil
 				preset.Undervolt = nil
 			}
+			preset.FanCurve = nil // presets no longer carry fan mode
 			preset.BaseProfile = ""
 			s.Presets[name] = preset
 		}
@@ -228,11 +227,15 @@ func saveState(s api.State) error {
 
 // persistState saves the live state while holding d.mu, so a concurrent
 // mutation cannot slip in between the marshal and the disk write (lost
-// update). Callers must not hold d.mu.
+// update). Callers must not hold d.mu. Subscribers are told to re-read state.
 func (d *Daemon) persistState() error {
 	d.mu.Lock()
-	defer d.mu.Unlock()
-	return saveState(d.state)
+	err := saveState(d.state)
+	d.mu.Unlock()
+	if err == nil {
+		d.broadcast(response{Event: "state-changed"})
+	}
+	return err
 }
 
 func projectTabletSettings(settings api.TabletSettings) error {

@@ -1,8 +1,11 @@
 package daemon
 
 import (
+	"errors"
 	"testing"
+	"time"
 
+	"github.com/aic0d3r/z13ctl-plus/internal/cli"
 	"github.com/dahui/z13ctl/api"
 )
 
@@ -159,5 +162,42 @@ func TestValidatePresetRejectsPL1AboveSafeMax(t *testing.T) {
 	p := api.Preset{Profile: "balanced", TDP: &api.TDPState{PL1SPL: 90, PL2SPPT: 90, FPPT: 90}}
 	if err := validatePreset(p); err == nil {
 		t.Fatal("PL1 90W accepted without force")
+	}
+}
+
+func TestCheckPowerPolicyNeverSpinsWithoutApplying(t *testing.T) {
+	d := &Daemon{state: api.State{PowerPolicy: &api.PowerPolicy{
+		Enabled: false, ACPreset: "Plugged In", BatteryPreset: "On Battery",
+	}}}
+	observed, applied := cli.PowerSourceAC, cli.PowerSourceAC
+	force := false
+	next := time.Now()
+
+	// Unplug with automation off: the source change arms force...
+	d.checkPowerPolicy(cli.PowerSourceBattery, nil, &observed, &applied, &force, &next)
+	// ...and the next check must disarm it instead of re-polling every 100 ms.
+	d.checkPowerPolicy(cli.PowerSourceBattery, nil, &observed, &applied, &force, &next)
+	if force {
+		t.Fatal("force stayed armed while power automation is disabled")
+	}
+
+	// A read error (no battery on desktops) must back off, not spin.
+	force = true
+	d.checkPowerPolicy("", errors.New("no readable external power supply"), &observed, &applied, &force, &next)
+	if time.Until(next) < powerPolicyRetry-time.Second {
+		t.Fatalf("read error retries in %v, want ~%v", time.Until(next), powerPolicyRetry)
+	}
+}
+
+func TestNextDisplayBackoff(t *testing.T) {
+	var backoff time.Duration
+	for range 10 {
+		backoff, _ = nextDisplayBackoff(backoff, errors.New("kscreen-doctor not found"))
+	}
+	if backoff != displayMaxBackoff {
+		t.Fatalf("backoff after repeated failures = %v, want %v", backoff, displayMaxBackoff)
+	}
+	if backoff, next := nextDisplayBackoff(backoff, nil); backoff != 0 || !next.IsZero() {
+		t.Fatalf("success did not reset backoff: %v %v", backoff, next)
 	}
 }

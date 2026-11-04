@@ -119,9 +119,9 @@ func SMUProbeUndervolt() bool {
 	args := [6]uint32{encoded}
 	resp, _, err := SendSMUCommand(MailboxMP1, smuCmdMP1COALL, args)
 	ok := err == nil && resp == SMUReturnOK
-	// Only a firmware answer is final; I/O or permission errors (e.g. perms
-	// not applied yet) are retried on the next call.
-	if err == nil {
+	// Only a definite firmware answer is final; I/O or permission errors (e.g.
+	// perms not applied yet) and a busy SMU are retried on the next call.
+	if err == nil && resp != SMUReturnBusy {
 		smuProbeDone, smuProbeOK = true, ok
 		if !ok {
 			slog.Warn("SMU undervolt probe failed — Curve Optimizer will be disabled",
