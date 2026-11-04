@@ -143,7 +143,7 @@ func DryRunFanCurveReset() {
 		curveDir = "<hwmon not found>"
 	}
 	for _, f := range fanIndices {
-		fmt.Printf("Would write 2 (auto) to %s/pwm%d_enable\n", curveDir, f)
+		fmt.Printf("Would write 3 (auto + factory curve) to %s/pwm%d_enable\n", curveDir, f)
 	}
 }
 

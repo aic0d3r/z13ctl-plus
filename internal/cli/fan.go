@@ -162,7 +162,7 @@ func setAllFanModes(mode int) error {
 			return fmt.Errorf("setting fan mode on %s: %w", hwmonNameCurves, err)
 		}
 		if readDir != "" {
-			_ = writeIntFile(readDir+"/"+file, mode)
+			_ = writeIntFile(readDir+"/"+file, min(mode, 2)) // readings device only knows 0–2
 		}
 	}
 	return nil
@@ -170,7 +170,8 @@ func setAllFanModes(mode int) error {
 
 // ResetAllFanCurves restores firmware auto mode for both fans.
 func ResetAllFanCurves() error {
-	return setAllFanModes(2) // auto/firmware
+	// 3 = auto + reload the profile's factory curve; 2 keeps stale custom points cached.
+	return setAllFanModes(3)
 }
 
 // HighTDPFanCurve returns an 8-point fan curve with a minimum PWM of 50%,
