@@ -1,6 +1,23 @@
 package daemon
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/dahui/z13ctl/api"
+)
+
+// An active 5 W override must be reported as-is, not mistaken for the
+// kernel's unset PPT cache and replaced by stock values.
+func TestTDPGetReturnsActiveOverride(t *testing.T) {
+	want := api.TDPState{PL1SPL: 5, PL2SPPT: 5, FPPT: 5, APUSPPT: 5, PlatformSPPT: 5}
+	d := &Daemon{state: api.State{TDPActive: true, TDP: &want}}
+	resp := d.handleTDPGet()
+	var got api.TDPState
+	if err := json.Unmarshal([]byte(resp.Value), &got); !resp.OK || err != nil || got != want {
+		t.Fatalf("tdp-get = %+v (%v), want %+v", resp, err, want)
+	}
+}
 
 func TestProfileProtocolRejectsCustom(t *testing.T) {
 	d := &Daemon{}

@@ -269,6 +269,10 @@ func (d *Daemon) applyPresetValue(name string, preset api.Preset) error {
 	// and a FanCurve stored by older versions is ignored.
 	next.Profile = preset.Profile
 	next.TDP = clonePtr(preset.TDP)
+	if next.TDP != nil {
+		// Match handleTDP: SetTDP drives APU and Platform sPPT from PL2.
+		next.TDP.APUSPPT, next.TDP.PlatformSPPT = next.TDP.PL2SPPT, next.TDP.PL2SPPT
+	}
 	next.Undervolt = clonePtr(preset.Undervolt)
 	next.TDPActive = preset.TDP != nil
 	next.UndervoltActive = preset.Undervolt != nil
