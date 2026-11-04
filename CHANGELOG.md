@@ -3,6 +3,20 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## v2.5.2 (2026-11-04)
+
+- `tdp --get` now reports an active TDP override as applied (a 5 W override
+  no longer reads as stock values). Presets saved with only PL1/PL2/fPPT now
+  report APU and Platform sPPT as PL2 instead of 0 W.
+- The power-policy watcher and display coordinator no longer retry in a tight
+  loop: power-source read errors wait 10 s, and failed display changes back
+  off from 1 s up to 60 s (for example without KScreen or with no internal panel).
+- A busy SMU reply no longer disables undervolt for the rest of the session.
+- GUIs get a `state-changed` event after lighting, fan-reset, preset and other
+  saved-state changes.
+- No misleading "CPU boost" warning on every profile switch when
+  power-profiles-daemon is installed but stopped or masked.
+
 ## v2.5.1 (2026-10-16)
 
 - Resume restores the power-policy preset for the current power source when
