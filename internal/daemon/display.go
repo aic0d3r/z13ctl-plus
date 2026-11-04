@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
 	"slices"
 	"time"
@@ -163,22 +164,11 @@ func (d *Daemon) reconcileDisplay() (changed, retry bool, err error) {
 	}
 	// Scale changes only on a posture transition, so a scale the user picks in
 	// System Settings sticks and is restored when they return to that posture.
-	// The first posture after startup keeps KDE's restored scale.
 	d.mu.Lock()
 	keepScale := d.state.TabletSettings.KeepDisplayScale
 	d.mu.Unlock()
-	if !keepScale && intent.posture != "" && d.scalePosture != "" && intent.posture != d.scalePosture {
-		if d.postureScales == nil {
-			d.postureScales = map[string]float64{}
-		}
-		d.postureScales[d.scalePosture] = current.Scale
-		scale = d.postureScales[intent.posture]
-		if scale == 0 {
-			scale = 1.5
-			if intent.posture == "tablet" {
-				scale = 1.75
-			}
-		}
+	if !keepScale && intent.posture != "" {
+		scale = d.postureScale(intent.posture, current.Scale)
 	}
 	refresh := intent.refresh
 	if scale != 0 && math.Abs(current.Scale-scale) < 0.01 {
@@ -200,4 +190,43 @@ func (d *Daemon) reconcileDisplay() (changed, retry bool, err error) {
 		d.scalePosture = intent.posture
 	}
 	return changed, false, nil
+}
+
+// postureScale remembers current as the scale of the posture last reconciled
+// and returns the scale to apply for posture (0 leaves the panel alone).
+// Remembered scales are persisted, so booting straight into a posture or a
+// daemon restart still restores them. Without a remembered scale, tablet
+// defaults to 1.75; the startup posture otherwise keeps KDE's scale and a
+// later transition uses 1.5. Callers hold applyMu.
+func (d *Daemon) postureScale(posture string, current float64) float64 {
+	d.mu.Lock()
+	scales := d.state.PostureScales
+	changed := false
+	if d.scalePosture != "" && math.Abs(scales[d.scalePosture]-current) >= 0.01 {
+		scales = maps.Clone(scales) // get-state may still be marshaling the old map
+		if scales == nil {
+			scales = map[string]float64{}
+		}
+		scales[d.scalePosture] = current
+		d.state.PostureScales = scales
+		changed = true
+	}
+	target := 0.0
+	if posture != d.scalePosture {
+		target = scales[posture]
+		switch {
+		case target != 0:
+		case posture == "tablet":
+			target = 1.75
+		case d.scalePosture != "":
+			target = 1.5
+		}
+	}
+	d.mu.Unlock()
+	if changed {
+		if err := d.persistState(); err != nil {
+			slog.Warn("failed to save posture scale", "err", err)
+		}
+	}
+	return target
 }

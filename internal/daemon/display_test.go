@@ -57,6 +57,7 @@ func fakeKScreen(t *testing.T, scale string) string {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("Z13CTL_ARGS", argsPath)
 	t.Setenv("Z13CTL_SCALE", scale)
+	t.Setenv("XDG_STATE_HOME", t.TempDir()) // remembered scales persist
 	return argsPath
 }
 
@@ -90,7 +91,8 @@ func TestReconcileDisplayTabletScalePreservesRotation(t *testing.T) {
 func TestReconcileDisplayRespectsUserScale(t *testing.T) {
 	argsPath := fakeKScreen(t, "1.25")
 	d := &Daemon{}
-	// Startup posture and the 30 s re-publish leave the user's scale alone.
+	d.state.PostureScales = map[string]float64{"tablet": 1.25}
+	// Startup posture with a remembered scale and the 30 s re-publish leave it alone.
 	if got := reconcileArgs(t, d, argsPath, "tablet"); got != "" {
 		t.Fatalf("startup reconcile applied %q", got)
 	}
@@ -112,6 +114,39 @@ func TestReconcileDisplayRespectsUserScale(t *testing.T) {
 	t.Setenv("Z13CTL_SCALE", "1.25")
 	if got, want := reconcileArgs(t, d, argsPath, "laptop"), "output.eDP-1.scale.1 output.eDP-1.rotation.none"; got != want {
 		t.Fatalf("laptop return args = %q, want %q", got, want)
+	}
+}
+
+func TestReconcileDisplayStartupTabletUsesDefault(t *testing.T) {
+	// Booting straight into tablet (or a daemon restart) with nothing
+	// remembered must still get the tablet scale.
+	argsPath := fakeKScreen(t, "1.5")
+	if got, want := reconcileArgs(t, &Daemon{}, argsPath, "tablet"), "output.eDP-1.scale.1.75"; got != want {
+		t.Fatalf("startup tablet args = %q, want %q", got, want)
+	}
+	// The startup desktop/laptop posture keeps KDE's scale.
+	if got, want := reconcileArgs(t, &Daemon{}, argsPath, "laptop"), "output.eDP-1.rotation.none"; got != want {
+		t.Fatalf("startup laptop args = %q, want %q", got, want)
+	}
+}
+
+func TestReconcileDisplayScalesSurviveRestart(t *testing.T) {
+	argsPath := fakeKScreen(t, "2")
+	d := &Daemon{}
+	reconcileArgs(t, d, argsPath, "tablet") // startup: 2 -> 1.75
+	reconcileArgs(t, d, argsPath, "tablet") // re-publish records the user's 2
+	saved, _, err := loadState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.PostureScales["tablet"] != 2 {
+		t.Fatalf("persisted posture scales = %v", saved.PostureScales)
+	}
+	// A restarted daemon booting into tablet at 1.5 restores 2.
+	t.Setenv("Z13CTL_SCALE", "1.5")
+	restarted := &Daemon{state: saved}
+	if got, want := reconcileArgs(t, restarted, argsPath, "tablet"), "output.eDP-1.scale.2"; got != want {
+		t.Fatalf("restart tablet args = %q, want %q", got, want)
 	}
 }
 

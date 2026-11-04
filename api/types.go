@@ -41,6 +41,7 @@ type State struct {
 	FanRPM             int                      `json:"fan_rpm,omitempty"`      // fan1 speed in RPM (legacy; also in Telemetry)
 	Telemetry          *TelemetryState          `json:"telemetry,omitempty"`    // live sensor readings
 	TabletSettings     TabletSettings           `json:"tablet_settings"`
+	PostureScales      map[string]float64       `json:"posture_scales,omitempty"`     // last panel scale per posture
 	TabletIntegration  *TabletIntegration       `json:"tablet_integration,omitempty"` // live companion status; never persisted
 }
 

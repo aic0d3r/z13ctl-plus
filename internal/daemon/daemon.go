@@ -46,10 +46,8 @@ type Daemon struct {
 	displayMu   sync.Mutex
 	display     displayIntent
 	displayCh   chan struct{}
-	// Guarded by applyMu. shortcut: in-memory only, so a restart forgets
-	// per-posture scales; persist in state if users want them across logins.
-	scalePosture  string
-	postureScales map[string]float64
+	// Guarded by applyMu: posture the panel scale was last reconciled for.
+	scalePosture string
 
 	subMu       sync.Mutex
 	subscribers []net.Conn // long-lived connections subscribed to events
