@@ -3,6 +3,13 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## v2.5.3 (2026-11-04)
+
+- Tablet posture gets its 175% scale again after booting straight into
+  tablet or a daemon restart (for example a package upgrade). The scale
+  remembered for each posture is now saved in state, and the tablet default
+  applies when no scale has been remembered yet.
+
 ## v2.5.2 (2026-11-04)
 
 - `tdp --get` now reports an active TDP override as applied (a 5 W override
