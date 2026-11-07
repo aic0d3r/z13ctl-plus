@@ -3,6 +3,19 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## v2.6.0 (2026-11-07)
+
+- New `camera` command and API (`SendCameraSet`, `SendCameraGet`) turn the
+  built-in camera on or off. Off disconnects the USB camera device, so the
+  webcam and the IR camera both disappear until it is turned back on. The
+  daemon remembers "off" and reapplies it after reboot and resume. `get-state`
+  reports `camera_off` and a `camera` capability. Rerun
+  `sudo z13ctl-plus setup` (or reinstall the package) so the new udev rule
+  grants access to the camera switch.
+- `fan reset` now reloads the factory curve for the active profile. Writing
+  `pwm_enable=2` returned the fans to firmware control but left the stale
+  custom points cached, so the old curve kept being reported after a reset.
+
 ## v2.5.3 (2026-11-04)
 
 - Tablet posture gets its 175% scale again after booting straight into
