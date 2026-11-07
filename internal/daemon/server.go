@@ -128,6 +128,10 @@ func (d *Daemon) dispatch(req request) response {
 		return d.handlePanelOverdrive(req)
 	case "paneloverdrive-get":
 		return handlePanelOverdriveGet()
+	case "camera":
+		return d.handleCamera(req)
+	case "camera-get":
+		return handleCameraGet()
 	case "cpu-min":
 		return d.handleCPUMin(req)
 	case "cpu-epp":
@@ -204,6 +208,10 @@ func (d *Daemon) dispatch(req request) response {
 		// Populate firmware-managed fields from sysfs (not cached in daemon state).
 		s.BootSound, _ = readOptionalInt(cli.FindBootSoundPath())
 		s.PanelOverdrive, _ = readOptionalInt(cli.FindPanelOverdrivePath())
+		// Report the live camera state; the saved choice stands in when it is unreadable.
+		if camera, err := cli.ReadCamera(); err == nil {
+			s.CameraOff = camera == 0
+		}
 		if cpuPower, err := cli.ReadCPUPower(); err == nil {
 			s.CPUPower = &cpuPower
 		}
@@ -327,7 +335,7 @@ func responseFromError(err error) response {
 func commandNeedsApplyLock(cmd string) bool {
 	switch cmd {
 	case "apply", "off", "brightness", "profile", "batterylimit", "bootsound",
-		"paneloverdrive", "cpu-min", "cpu-epp", "cpu-boost", "refresh-rate",
+		"paneloverdrive", "camera", "cpu-min", "cpu-epp", "cpu-boost", "refresh-rate",
 		"fancurve", "fancurve-reset", "tdp", "tdp-reset", "undervolt", "undervolt-reset",
 		"tuning-reset", "preset-save":
 		return true
@@ -671,6 +679,34 @@ func (d *Daemon) handlePanelOverdrive(req request) response {
 	d.mu.Lock()
 	d.state.PanelOverdrive = value
 	d.state.ActivePreset = ""
+	d.mu.Unlock()
+	if err := d.persistState(); err != nil {
+		slog.Warn("failed to save state", "err", err)
+	}
+	return response{OK: true}
+}
+
+func handleCameraGet() response {
+	value, err := cli.ReadCamera()
+	if err != nil {
+		return response{OK: false, Error: "reading camera: " + err.Error()}
+	}
+	return response{OK: true, Value: strconv.Itoa(value)}
+}
+
+// handleCamera switches the built-in camera and saves the choice so Run and
+// resume can reapply it (the kernel authorizes the device again on boot).
+func (d *Daemon) handleCamera(req request) response {
+	value, err := strconv.Atoi(req.Set)
+	if err != nil || (value != 0 && value != 1) {
+		return response{OK: false, Error: "camera must be 0 or 1"}
+	}
+	if err := cli.SetCamera(value); err != nil {
+		return response{OK: false, Error: "camera: " + err.Error()}
+	}
+	slog.Info("camera", "set", value)
+	d.mu.Lock()
+	d.state.CameraOff = value == 0
 	d.mu.Unlock()
 	if err := d.persistState(); err != nil {
 		slog.Warn("failed to save state", "err", err)

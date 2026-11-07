@@ -18,6 +18,7 @@ type State struct {
 	Battery            int                      `json:"battery_limit,omitempty"`
 	BootSound          int                      `json:"boot_sound,omitempty"`
 	PanelOverdrive     int                      `json:"panel_overdrive,omitempty"`
+	CameraOff          bool                     `json:"camera_off,omitempty"` // built-in camera switched off; persisted and reapplied at boot and resume
 	FanCurve           *FanCurveState           `json:"fan_curve,omitempty"`
 	TDP                *TDPState                `json:"tdp,omitempty"`
 	Undervolt          *UndervoltState          `json:"undervolt,omitempty"`
@@ -59,6 +60,7 @@ type Capabilities struct {
 	BootSound      bool `json:"boot_sound"`      // asus-armoury boot sound attribute exists
 	PanelOverdrive bool `json:"panel_overdrive"` // asus-armoury panel overdrive attribute exists
 	Display        bool `json:"display"`         // an internal panel (eDP-1) was read
+	Camera         bool `json:"camera"`          // a built-in USB camera was found
 }
 
 // TabletSettings configures the optional z13-tablet-kit companion.

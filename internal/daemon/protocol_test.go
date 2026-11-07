@@ -69,6 +69,7 @@ func TestWireProtocolDecodesEveryAPICall(t *testing.T) {
 		{"batterylimit", func() error { _, err := api.SendBatteryLimitSet(80); return err }},
 		{"bootsound", func() error { _, err := api.SendBootSoundSet(1); return err }},
 		{"paneloverdrive", func() error { _, err := api.SendPanelOverdriveSet(1); return err }},
+		{"camera", func() error { _, err := api.SendCameraSet(0); return err }},
 		{"cpu-min", func() error { _, err := api.SendCPUMinFrequencySet(400000); return err }},
 		{"cpu-epp", func() error { _, err := api.SendCPUEPPSet("balance_performance"); return err }},
 		{"cpu-boost", func() error { _, err := api.SendCPUBoostSet(true); return err }},

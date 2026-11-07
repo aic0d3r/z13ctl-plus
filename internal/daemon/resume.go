@@ -142,7 +142,7 @@ func lidOpened(sig *dbus.Signal) bool {
 }
 
 // restoreVolatileState reapplies all settings that are lost on sleep/resume:
-// lighting, fan curves, TDP, and Curve Optimizer offsets.
+// lighting, fan curves, TDP, Curve Optimizer offsets, and a camera turned off.
 func (d *Daemon) restoreVolatileState() {
 	d.mu.Lock()
 	state := d.state
@@ -161,6 +161,10 @@ func (d *Daemon) restoreVolatileState() {
 	// takes applyMu then d.mu around the device use, matching the dispatch
 	// handlers' lock order.
 	d.restoreLighting()
+
+	d.applyMu.Lock()
+	restoreCamera(state.CameraOff, "resume")
+	d.applyMu.Unlock()
 
 	if state.ActivePreset != "" {
 		if err := d.applyPreset(state.ActivePreset); err != nil {

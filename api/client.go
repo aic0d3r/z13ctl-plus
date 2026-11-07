@@ -199,6 +199,12 @@ func SendPanelOverdriveSet(value int) (bool, error) {
 	return sendRequest(request{Cmd: "paneloverdrive", Set: fmt.Sprintf("%d", value)})
 }
 
+// SendCameraSet turns the built-in camera on (1) or off (0). The daemon
+// remembers the choice and reapplies it after boot and resume.
+func SendCameraSet(value int) (bool, error) {
+	return sendRequest(request{Cmd: "camera", Set: fmt.Sprintf("%d", value)})
+}
+
 // SendCPUMinFrequencySet sets the minimum CPU frequency for every cpufreq policy.
 func SendCPUMinFrequencySet(khz int) (bool, error) {
 	return sendRequest(request{Cmd: "cpu-min", Set: strconv.Itoa(khz)})
@@ -234,6 +240,12 @@ func SendRefreshRateGet() (handled bool, hz int, err error) {
 // reading sysfs. Returns (false, 0, nil) if the daemon is not running.
 func SendBootSoundGet() (handled bool, value int, err error) {
 	return sendIntValue("bootsound-get", "boot sound")
+}
+
+// SendCameraGet queries the daemon for whether the built-in camera is on (1)
+// or off (0). Returns (false, 0, nil) if the daemon is not running.
+func SendCameraGet() (handled bool, value int, err error) {
+	return sendIntValue("camera-get", "camera")
 }
 
 // SendPanelOverdriveGet queries the daemon for the current panel overdrive

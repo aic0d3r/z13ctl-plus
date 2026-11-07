@@ -112,6 +112,16 @@ func DryRunBootSound(value int) {
 	fmt.Printf("Would write %d to %s\n", value, FindBootSoundPath())
 }
 
+// DryRunCamera prints the sysfs write that would be performed for a camera change.
+func DryRunCamera(value int) {
+	fmt.Println("=== DRY RUN (no sysfs write) ===")
+	path := FindCameraPath()
+	if path == "" {
+		path = "(no built-in camera found)"
+	}
+	fmt.Printf("Would write %d to %s\n", value, path)
+}
+
 // DryRunPanelOverdrive prints the sysfs write that would be performed for a panel overdrive change.
 func DryRunPanelOverdrive(value int) {
 	fmt.Println("=== DRY RUN (no sysfs write) ===")

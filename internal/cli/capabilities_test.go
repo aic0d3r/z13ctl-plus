@@ -8,8 +8,8 @@ func TestUnsupported(t *testing.T) {
 			t.Errorf("Unsupported(%q) = %q, want empty", cmd, got)
 		}
 	}
-	if len(commandNeeds) != 12 {
-		t.Errorf("expected 12 hardware-gated commands, got %d", len(commandNeeds))
+	if len(commandNeeds) != 14 {
+		t.Errorf("expected 14 hardware-gated commands, got %d", len(commandNeeds))
 	}
 	for cmd, need := range commandNeeds {
 		if (Unsupported(cmd) == "") != need.has() {

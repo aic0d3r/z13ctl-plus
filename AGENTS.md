@@ -54,6 +54,7 @@ cmd/                         Cobra subcommands
   batterylimit.go            get/set battery charge limit (power_supply sysfs)
   bootsound.go               get/set POST boot sound (asus-armoury firmware-attributes)
   paneloverdrive.go          get/set panel refresh overdrive (asus-armoury firmware-attributes)
+  camera.go                  turn the built-in USB camera on/off (USB `authorized`; daemon reapplies off at boot/resume)
   fancurve.go                get/set/reset custom fan curves (hwmon sysfs)
   tdp.go                     get/set/reset TDP power limits (asus-nb-wmi PPT sysfs)
   undervolt.go               get/set/reset CPU Curve Optimizer offsets via ryzen_smu

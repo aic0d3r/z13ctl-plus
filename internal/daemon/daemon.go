@@ -132,6 +132,8 @@ func Run(ctx context.Context, watchBtn bool) error {
 		}
 	}
 
+	restoreCamera(d.state.CameraOff, "startup")
+
 	if watchBtn {
 		go watchButton(ctx, d.buttonCh)
 	} else {
@@ -301,6 +303,23 @@ func (d *Daemon) reopenAndRestore() bool {
 	}
 	slog.Info("keyboard reattached; lighting restored")
 	return true
+}
+
+// restoreCamera switches the built-in camera off again when the user turned it
+// off: the kernel re-authorizes the USB device on every boot, and on resume if
+// it re-enumerates. Nothing is written when it is already off or meant to be on.
+func restoreCamera(off bool, when string) {
+	if !off {
+		return
+	}
+	if current, err := cli.ReadCamera(); err != nil || current == 0 {
+		return
+	}
+	if err := cli.SetCamera(0); err != nil {
+		slog.Warn("failed to restore camera off", "when", when, "err", err)
+		return
+	}
+	slog.Info("camera off restored", "when", when)
 }
 
 // applyLightingState restores lighting from the saved state. d.dev must be non-nil.

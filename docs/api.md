@@ -102,6 +102,10 @@ handled, err          := api.SendProfileSet("performance")
 handled, err := api.SendBootSoundSet(0)
 handled, err := api.SendPanelOverdriveSet(1)
 
+// Built-in camera: 0 = off (remembered across reboot), 1 = on
+handled, err := api.SendCameraSet(0)
+handled, on, err := api.SendCameraGet()
+
 // Live AMD P-State controls
 handled, err := api.SendCPUMinFrequencySet(625000) // kHz
 handled, err := api.SendCPUEPPSet("balance_power")

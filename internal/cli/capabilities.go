@@ -24,6 +24,7 @@ func init() {
 	battery := func() bool { return pathExists(FindBatteryThresholdPath()) }
 	boot := func() bool { return pathExists(FindBootSoundPath()) }
 	overdrive := func() bool { return pathExists(FindPanelOverdrivePath()) }
+	camera := func() bool { return FindCameraPath() != "" }
 	fan := func() bool { return FindFanCurveHwmonPath() != "" }
 	tdp := func() bool { return pathExists(pptBasePath + "/ppt_pl1_spl") }
 	for cmd, need := range map[string]struct {
@@ -33,6 +34,7 @@ func init() {
 		"batterylimit": {"a battery charge limit", battery}, "batterylimit-get": {"a battery charge limit", battery},
 		"bootsound": {"the ASUS boot sound attribute", boot}, "bootsound-get": {"the ASUS boot sound attribute", boot},
 		"paneloverdrive": {"the ASUS panel overdrive attribute", overdrive}, "paneloverdrive-get": {"the ASUS panel overdrive attribute", overdrive},
+		"camera": {"a built-in camera", camera}, "camera-get": {"a built-in camera", camera},
 		"fancurve": {"ASUS custom fan curves", fan}, "fancurve-get": {"ASUS custom fan curves", fan}, "fancurve-reset": {"ASUS custom fan curves", fan},
 		"tdp": {"ASUS PPT power limits", tdp}, "tdp-get": {"ASUS PPT power limits", tdp}, "tdp-reset": {"ASUS PPT power limits", tdp},
 	} {
@@ -61,6 +63,7 @@ func DetectCapabilities(display DisplaySummary, hasBattery bool) *api.Capabiliti
 		BatteryLimit:   pathExists(FindBatteryThresholdPath()),
 		BootSound:      pathExists(FindBootSoundPath()),
 		PanelOverdrive: pathExists(FindPanelOverdrivePath()),
+		Camera:         FindCameraPath() != "",
 		// A readable eDP-1 block (enabled or disabled) means an internal panel exists.
 		Display: display.Refresh > 0 || display.PanelOff,
 	}

@@ -9,8 +9,8 @@
     point-and-tap controls.
 
 !!! note "Hardware-dependent commands"
-    `batterylimit`, `bootsound`, `paneloverdrive`, `fancurve` and `tdp` need ASUS
-    or battery interfaces. On a machine without them the daemon answers
+    `batterylimit`, `bootsound`, `paneloverdrive`, `camera`, `fancurve` and `tdp`
+    need ASUS, battery or built-in camera interfaces. On a machine without them the daemon answers
     `not supported on this machine: no <what>`.
 
 ## Global Flags
@@ -294,6 +294,32 @@ z13ctl-plus paneloverdrive --set 1
 
 ---
 
+## camera
+
+Turn the built-in camera on or off. Off disconnects the USB camera device
+(through its `authorized` sysfs attribute), so the webcam and the IR camera both
+disappear and no application can open them until the camera is turned back on.
+The daemon remembers "off" and reapplies it after reboot and resume; without the
+daemon the kernel turns the camera back on at the next boot. Root or group
+access required; see [setup](#setup). An application using the camera when it
+is turned off loses it.
+
+```
+z13ctl-plus camera [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--get` | Print whether the camera is on (`1`) or off (`0`) |
+| `--set <value>` | Turn the camera off (`0`) or on (`1`) |
+
+```sh
+z13ctl-plus camera --set 0
+z13ctl-plus camera --get
+```
+
+---
+
 ## fancurve
 
 Get, set, or reset custom fan curves via the asus-wmi hwmon sysfs interface.
@@ -569,8 +595,8 @@ z13ctl-plus --no-button daemon   # without button watcher
 ```
 
 When the daemon is running, all other commands (`apply`, `brightness`, `off`,
-`profile`, `batterylimit`, `bootsound`, `paneloverdrive`, `fancurve`, `tdp`,
-`undervolt`, `status`)
+`profile`, `batterylimit`, `bootsound`, `paneloverdrive`, `camera`, `fancurve`,
+`tdp`, `undervolt`, `status`)
 route through the daemon socket automatically. If the daemon is not running
 they fall back to direct hardware or sysfs access.
 
