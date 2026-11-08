@@ -56,6 +56,12 @@ compatible; client integration details are in the
 > CPU policy, expanded telemetry, refresh rate, and tuning controls through the
 > daemon. Display posture/rotation and scripting remain CLI/API workflows.
 
+<p align="center">
+  <img src="docs/assets/drawer-tabs.png" alt="Z13GUI+ drawer showing the Overview, Power, RGB, and Settings tabs" width="820" />
+  <br/>
+  <em>Z13GUI+ drawer — Overview, Power, RGB, and Settings</em>
+</p>
+
 ## Compatibility
 
 | Machine | Status |
