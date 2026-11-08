@@ -146,6 +146,10 @@ Full documentation at **<https://aic0d3r.github.io/z13ctl-plus>**
 - [API](https://aic0d3r.github.io/z13ctl-plus/api/)
 - [Contributing](https://aic0d3r.github.io/z13ctl-plus/contributing/)
 
+## Say thanks
+
+If z13ctl-plus makes your Z13 nicer to live with, [star it on GitHub](https://github.com/aic0d3r/z13ctl-plus). That helps other Z13 owners find it. If you want to chip in, you can [sponsor me on GitHub](https://github.com/sponsors/aic0d3r).
+
 ## License
 
 [Apache 2.0](LICENSE)
