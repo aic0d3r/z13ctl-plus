@@ -11,3 +11,23 @@
     {{ super() }}
   {% endif %}
 {% endblock %}
+
+{# Social/OG card meta. Material only emits these via the social plugin, which
+   needs Pillow and re-renders images per page — a single static card is
+   simpler and keeps every shared link visually identical. The absolute URL is
+   intentional: og:image must not be relative. Asset lives in docs/assets. #}
+{% block extrahead %}
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="{{ site_name }}" />
+  <meta property="og:title" content="{{ page.title | default(site_name, true) }}" />
+  <meta property="og:description" content="{{ site_description }}" />
+  {% if page.canonical_url %}<meta property="og:url" content="{{ page.canonical_url }}" />{% endif %}
+  <meta property="og:image" content="https://aic0d3r.github.io/z13ctl-plus/assets/social-preview.png" />
+  <meta property="og:image:width" content="1280" />
+  <meta property="og:image:height" content="640" />
+  <meta property="og:image:alt" content="z13ctl-plus — RGB, fans, TDP and undervolt control for the ASUS ROG Flow Z13" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="{{ page.title | default(site_name, true) }}" />
+  <meta name="twitter:description" content="{{ site_description }}" />
+  <meta name="twitter:image" content="https://aic0d3r.github.io/z13ctl-plus/assets/social-preview.png" />
+{% endblock %}
