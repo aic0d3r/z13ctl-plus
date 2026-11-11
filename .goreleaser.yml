@@ -78,4 +78,6 @@ release:
   # workflow as `--release-notes`; no commit list, no header.
 
 changelog:
-  disable: true
+  # Not disabled: goreleaser's changelog step is what loads --release-notes.
+  # The flag overrides the generated commit list.
+  use: git
