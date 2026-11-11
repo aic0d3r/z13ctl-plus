@@ -1,4 +1,4 @@
-# z13ctl+ — Linux control for the ASUS ROG Flow Z13
+# z13ctl+ — Linux RGB, fan, TDP & undervolt control for the ASUS ROG Flow Z13
 
 <div align="center">
 
@@ -13,7 +13,7 @@
 
 </div>
 
-One CLI and systemd user daemon for the **2025 ASUS ROG Flow Z13** (GZ302):
+One CLI and systemd user daemon for the **2025 ASUS ROG Flow Z13** (GZ302, AMD Strix Halo):
 
 - **Lighting** — RGB keyboard and lightbar
 - **Power** — TDP/PPT limits, Curve Optimizer undervolt, AMD P-State policy, battery limit
