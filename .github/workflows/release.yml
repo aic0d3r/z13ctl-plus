@@ -55,10 +55,11 @@ jobs:
     runs-on: ubuntu-latest
     if: >-
       always() &&
-      github.event_name == 'workflow_dispatch' &&
-      inputs.aur &&
-      (needs.release.result == 'success' || needs.release.result == 'skipped') &&
-      !contains(inputs.tag, '-')
+      !contains(inputs.tag || github.ref_name, '-') &&
+      (
+        (github.event_name == 'push' && needs.release.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.aur && (needs.release.result == 'success' || needs.release.result == 'skipped'))
+      )
     steps:
       - uses: actions/checkout@v4
         with:
