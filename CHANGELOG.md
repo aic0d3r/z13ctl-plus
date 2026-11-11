@@ -3,6 +3,21 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## v2.6.1 (2026-11-11)
+
+- Detaching the keyboard no longer leaves a dead HID node that starves the
+  lightbar; the device is reopened on detach.
+- The NPU is no longer polled for 7 s after a 0% reading, so runtime power
+  management can autosuspend it.
+- Presets skip panel overdrive when the firmware attribute is absent, and a
+  failing preset stops retrying after 3 attempts until the power source
+  changes.
+- The resume watcher stops cleanly when the system DBus channel closes
+  (previously a busy loop), and the button watcher closes its device on read
+  errors.
+- `setup` no longer grants group write on ryzen_smu `rsmu_cmd`. Rerun
+  `sudo z13ctl-plus setup` (or reinstall the package) to apply.
+
 ## v2.6.0 (2026-11-07)
 
 - New `camera` command and API (`SendCameraSet`, `SendCameraGet`) turn the
