@@ -37,10 +37,15 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          awk -v t="## $TAG " 'index($0,t)==1{f=1;next} /^## /{f=0} f' CHANGELOG.md | sed '/./,$!d' > /tmp/notes.md
+          test -s /tmp/notes.md || { echo "No CHANGELOG.md section for $TAG"; exit 1; }
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
-          args: release --clean
+          args: release --clean --release-notes=/tmp/notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ inputs.tag || github.ref_name }}
