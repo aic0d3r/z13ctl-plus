@@ -16,8 +16,10 @@ const (
 	TDPMin       = 5  // absolute minimum
 	TDPMaxSafe   = 75 // max in Armoury Crate custom mode
 	TDPMaxForced = 93 // absolute max for GZ302E (G-Helper)
-	pptBasePath  = "/sys/devices/platform/asus-nb-wmi"
 )
+
+// pptBasePath is a variable only so UseSysfsRoots can redirect it in tests.
+var pptBasePath = "/sys/devices/platform/asus-nb-wmi"
 
 // StockProfilePPT maps stock platform_profile names to their actual PPT values
 // as measured with ryzenadj on the 2025 Z13. The kernel's sysfs PPT attributes

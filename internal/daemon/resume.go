@@ -59,7 +59,11 @@ func (d *Daemon) watchResume(ctx context.Context) {
 		case <-ctx.Done():
 			conn.RemoveSignal(ch)
 			return
-		case sig := <-ch:
+		case sig, ok := <-ch:
+			if !ok {
+				slog.Warn("system DBus connection closed; resume watcher stopped")
+				return
+			}
 			if sig == nil {
 				continue
 			}

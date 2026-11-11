@@ -3,7 +3,26 @@ package cli
 import (
 	"encoding/binary"
 	"testing"
+	"time"
 )
+
+// Inside the quiet window the NPU must not be queried: with no device present
+// a real query would fail, so getting the saved reading proves it was skipped.
+func TestReadNPUTelemetryReusesQuietReading(t *testing.T) {
+	npuQuietMu.Lock()
+	npuQuietAt, npuQuietPower, npuQuietClock = time.Now(), 0.42, 1267
+	npuQuietMu.Unlock()
+	t.Cleanup(func() {
+		npuQuietMu.Lock()
+		npuQuietAt = time.Time{}
+		npuQuietMu.Unlock()
+	})
+
+	power, util, clock, err := ReadNPUTelemetry()
+	if err != nil || power != 0.42 || util != 0 || clock != 1267 {
+		t.Fatalf("ReadNPUTelemetry() = %v, %d, %d, %v; want the saved quiet reading", power, util, clock, err)
+	}
+}
 
 func TestReadMemory(t *testing.T) {
 	used, total, err := ReadMemory()

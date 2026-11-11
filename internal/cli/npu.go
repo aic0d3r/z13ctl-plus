@@ -30,6 +30,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -213,6 +214,44 @@ func ReadNPUSensors() (powerW float64, utilPct int, err error) {
 		utilPct = utilSum / utilCount
 	}
 	return powerW, utilPct, nil
+}
+
+// npuQuietWindow must exceed the driver's 5 s runtime-PM autosuspend delay.
+// Every ioctl restarts that timer, so a client polling once a second would
+// otherwise keep an unused NPU powered for good.
+const npuQuietWindow = 7 * time.Second
+
+var (
+	npuQuietMu    sync.Mutex
+	npuQuietAt    time.Time // when the last 0% reading was taken; zero = none
+	npuQuietPower float64
+	npuQuietClock int
+)
+
+// ReadNPUTelemetry returns power, utilization and clock for the NPU. After a
+// reading with 0% utilization the device is not queried again for
+// npuQuietWindow (the saved reading is returned), so it can autosuspend. An
+// NPU that is still busy afterwards belongs to someone else's workload.
+func ReadNPUTelemetry() (powerW float64, utilPct, clockMHz int, err error) {
+	npuQuietMu.Lock()
+	defer npuQuietMu.Unlock()
+	if !npuQuietAt.IsZero() && time.Since(npuQuietAt) < npuQuietWindow {
+		return npuQuietPower, 0, npuQuietClock, nil
+	}
+	npuQuietAt = time.Time{}
+	powerW, utilPct, err = ReadNPUSensors()
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	if !npuSensorsUnsupported.Load() {
+		if v, clockErr := ReadNPUClockMHz(); clockErr == nil {
+			clockMHz = v
+		}
+	}
+	if utilPct == 0 {
+		npuQuietAt, npuQuietPower, npuQuietClock = time.Now(), powerW, clockMHz
+	}
+	return powerW, utilPct, clockMHz, nil
 }
 
 // ReadNPUClockMHz returns the current MP-NPU clock (npuclk) in MHz, or

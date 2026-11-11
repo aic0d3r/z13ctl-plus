@@ -427,15 +427,11 @@ func ReadTelemetry() *api.TelemetryState {
 	if v, err := ReadGPUUtilization(); err == nil {
 		t.GPUUtil = v
 	}
-	if power, util, err := ReadNPUSensors(); err == nil {
+	if power, util, clock, err := ReadNPUTelemetry(); err == nil {
 		t.NPUPowerW = power
 		t.NPUUtil = util
+		t.NPUClockMHz = clock
 		t.NPUAvailable = true
-	}
-	if t.NPUAvailable && !npuSensorsUnsupported.Load() {
-		if v, err := ReadNPUClockMHz(); err == nil {
-			t.NPUClockMHz = v
-		}
 	}
 	if v, err := ReadCPUClockMHz(); err == nil {
 		t.CPUClockMHz = v

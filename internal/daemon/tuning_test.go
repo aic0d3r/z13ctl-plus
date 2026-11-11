@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/aic0d3r/z13ctl-plus/internal/cli"
@@ -81,12 +82,12 @@ func TestPlanTuningHighTDPKeepsStrongUserCurve(t *testing.T) {
 		FanCurveActive: true,
 	}
 
-	if plan := planTuning(state); !cli.FanCurveEquals(plan.Fan.Points, strong.Points) {
+	if plan := planTuning(state); !slices.Equal(plan.Fan.Points, strong.Points) {
 		t.Error("high TDP with an all-255 user curve: the user curve should stand")
 	}
 
 	state.FanCurve = weak
-	if plan := planTuning(state); !cli.FanCurveEquals(plan.Fan.Points, cli.HighTDPFanCurve()) {
+	if plan := planTuning(state); !slices.Equal(plan.Fan.Points, cli.HighTDPFanCurve()) {
 		t.Error("high TDP with a sub-floor user curve: the safety curve should apply")
 	}
 }

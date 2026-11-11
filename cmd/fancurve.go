@@ -55,9 +55,7 @@ With --reset, restores firmware auto mode (pwm_enable=2) for both fans.`,
 }
 
 func runFanCurveGet() error {
-	// Display fan1 only — the Z13 APU has two physical fans but they share a
-	// single hwmon control channel (pwm1). The kernel exposes a phantom fan2
-	// channel (0 RPM, pwm2_enable returns EIO) intended for GPU-fan SKUs.
+	// Show the fan1 curve and mode only: both fans always get the same curve.
 	rpms, rpmErr := cli.ReadBothFanRPM()
 	modes, modeErr := cli.ReadBothFanModes()
 	curves, curveErr := cli.ReadBothFanCurves()

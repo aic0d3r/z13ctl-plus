@@ -9,15 +9,17 @@ package cli
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/dahui/z13ctl/api"
 )
 
-const (
-	hwmonDir = "/sys/class/hwmon"
+// hwmonDir is a variable only so UseSysfsRoots can redirect it in tests.
+var hwmonDir = "/sys/class/hwmon"
 
+const (
 	// hwmon device names exposed by the asus-wmi kernel driver.
 	hwmonNameReadings = "asus"                  // fan RPM + pwm_enable
 	hwmonNameCurves   = "asus_custom_fan_curve" // 8-point curves + pwm_enable
@@ -191,19 +193,6 @@ func HighTDPFanCurve() []api.FanCurvePoint {
 	}
 }
 
-// FanCurveEquals reports whether two fan curves have identical points.
-func FanCurveEquals(a, b []api.FanCurvePoint) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // LiftHighTDPFanCurve resets both fans to firmware auto mode if the current
 // custom curve is exactly the high-TDP safety curve. Used by the daemonless
 // CLI path, which keeps no record of the user's desired curve.
@@ -215,7 +204,7 @@ func LiftHighTDPFanCurve() {
 	}
 	safety := HighTDPFanCurve()
 	for i := range fanIndices {
-		if modes[i] != 1 || !FanCurveEquals(curves[i], safety) {
+		if modes[i] != 1 || !slices.Equal(curves[i], safety) {
 			return
 		}
 	}

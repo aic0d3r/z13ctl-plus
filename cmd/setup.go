@@ -81,7 +81,7 @@ ExecStart=/bin/sh -c 'for f in /sys/class/power_supply/BAT*/charge_control_end_t
 ExecStart=/bin/sh -c 'for f in /sys/class/firmware-attributes/asus-armoury/attributes/boot_sound/current_value /sys/class/firmware-attributes/asus-armoury/attributes/panel_overdrive/current_value; do [ -e "$$f" ] && chgrp %s "$$f" && chmod g+w "$$f"; done || true'
 ExecStart=/bin/sh -c 'for f in /sys/devices/platform/asus-nb-wmi/ppt_*; do [ -e "$$f" ] && chgrp %s "$$f" && chmod g+w "$$f"; done || true'
 ExecStart=/bin/sh -c 'for f in /sys/devices/system/cpu/cpufreq/boost /sys/devices/system/cpu/cpufreq/policy*/scaling_min_freq /sys/devices/system/cpu/cpufreq/policy*/energy_performance_preference; do [ -e "$$f" ] && chgrp %s "$$f" && chmod g+w "$$f"; done || true'
-ExecStart=/bin/sh -c 'for f in /sys/kernel/ryzen_smu_drv/smu_args /sys/kernel/ryzen_smu_drv/mp1_smu_cmd /sys/kernel/ryzen_smu_drv/rsmu_cmd; do [ -e "$$f" ] && chgrp %s "$$f" && chmod g+w "$$f" || true; done'
+ExecStart=/bin/sh -c 'for f in /sys/kernel/ryzen_smu_drv/smu_args /sys/kernel/ryzen_smu_drv/mp1_smu_cmd; do [ -e "$$f" ] && chgrp %s "$$f" && chmod g+w "$$f" || true; done || true'
 
 [Install]
 WantedBy=multi-user.target
@@ -148,7 +148,6 @@ func applySysfsPerms(group string, dryRun bool) error {
 		"/sys/devices/system/cpu/cpufreq/policy*/energy_performance_preference",
 		"/sys/kernel/ryzen_smu_drv/smu_args",
 		"/sys/kernel/ryzen_smu_drv/mp1_smu_cmd",
-		"/sys/kernel/ryzen_smu_drv/rsmu_cmd",
 	} {
 		applyMatches(pattern, "g+w")
 	}

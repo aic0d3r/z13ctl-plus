@@ -42,10 +42,12 @@ type Daemon struct {
 	state       api.State
 	powerSource string
 	policyCh    chan struct{}
-	powerCh     chan struct{} // UPower OnBattery changed
-	displayMu   sync.Mutex
-	display     displayIntent
-	displayCh   chan struct{}
+	// Consecutive failed preset applies; only touched by watchPowerPolicy.
+	policyFailures int
+	powerCh        chan struct{} // UPower OnBattery changed
+	displayMu      sync.Mutex
+	display        displayIntent
+	displayCh      chan struct{}
 	// Guarded by applyMu: posture the panel scale was last reconciled for.
 	scalePosture string
 

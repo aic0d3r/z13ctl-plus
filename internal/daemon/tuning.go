@@ -29,7 +29,8 @@ type tuningPlan struct {
 }
 
 // curveMeetsHighTDPFloor reports whether every point of the curve is at or
-// above cli.HighTDPMinPWM, so it cools at least as well as the safety curve.
+// above cli.HighTDPMinPWM, so it never drops below the safety floor (it can still
+// be flatter than the safety curve's ramp).
 func curveMeetsHighTDPFloor(points []api.FanCurvePoint) bool {
 	for _, p := range points {
 		if p.PWM < cli.HighTDPMinPWM {

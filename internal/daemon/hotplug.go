@@ -37,13 +37,18 @@ func (d *Daemon) watchHotplug(ctx context.Context) {
 
 // hotplugTick advances the reattach watcher by one observation and returns the
 // new latched-present state. observe reports the keyboard's current presence;
-// onReattach is invoked only on an absent → present transition and returns
-// whether the reopen+restore succeeded. Presence is latched on success only, so
-// a failed reopen (returning false) is retried on the next tick.
+// onReattach runs on every presence transition and returns whether the
+// reopen+restore succeeded. On detach it drops the dead keyboard node, which
+// would otherwise fail every write and starve the lightbar. After an
+// absent → present transition presence is latched on success only, so a failed
+// reopen is retried on the next tick.
 func hotplugTick(present bool, observe, onReattach func() bool) bool {
 	now := observe()
 	if now && !present {
 		return onReattach()
+	}
+	if !now && present {
+		onReattach()
 	}
 	return now
 }

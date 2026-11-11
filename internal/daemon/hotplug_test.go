@@ -39,11 +39,12 @@ func TestHotplugTick(t *testing.T) {
 			wantReattach: false,
 		},
 		{
-			name:         "present to absent (detach), no reattach",
+			name:         "present to absent (detach) drops the dead node",
 			present:      true,
 			observed:     false,
+			reattachOK:   true,
 			wantNext:     false,
-			wantReattach: false,
+			wantReattach: true,
 		},
 		{
 			name:         "stable absent, no reattach",

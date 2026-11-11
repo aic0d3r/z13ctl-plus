@@ -4,7 +4,9 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"slices"
 	"strconv"
@@ -19,6 +21,7 @@ const (
 	powerPolicyPollInterval = 30 * time.Second // sysfs fallback when UPower is absent
 	powerPolicySettle       = 2 * time.Second  // new source must be stable this long
 	powerPolicyRetry        = 10 * time.Second // after a failed apply
+	powerPolicyMaxFailures  = 3                // then wait for a source change or explicit request
 )
 
 func (d *Daemon) seedDefaultPresets(fresh bool) error {
@@ -307,12 +310,18 @@ func (d *Daemon) applyPresetValue(name string, preset api.Preset) error {
 	panelApplied := false
 	if preset.PanelOverdrive != nil {
 		current, readErr := readOptionalInt(cli.FindPanelOverdrivePath())
-		if readErr == nil && current == *preset.PanelOverdrive {
+		switch {
+		case errors.Is(readErr, fs.ErrNotExist):
+			// No asus-armoury attribute on this kernel: nothing to apply, and
+			// counting it as a failure would retry the whole preset forever.
+		case readErr == nil && current == *preset.PanelOverdrive:
 			panelApplied = true
-		} else if err := cli.SetPanelOverdrive(*preset.PanelOverdrive); err != nil {
-			failed = append(failed, "panel overdrive: "+err.Error())
-		} else {
-			panelApplied = true
+		default:
+			if err := cli.SetPanelOverdrive(*preset.PanelOverdrive); err != nil {
+				failed = append(failed, "panel overdrive: "+err.Error())
+			} else {
+				panelApplied = true
+			}
 		}
 	}
 	if preset.RefreshRate != 0 {
@@ -642,6 +651,7 @@ func (d *Daemon) watchPowerPolicy(ctx context.Context) {
 			return
 		case <-d.policyCh:
 			force = true
+			d.policyFailures = 0
 			nextApply = time.Now().Add(3 * time.Second)
 		case <-d.powerCh:
 		case <-timer.C:
@@ -670,6 +680,7 @@ func (d *Daemon) checkPowerPolicy(source string, err error, observedSource, last
 	d.mu.Unlock()
 	if source != *observedSource {
 		*observedSource = source
+		d.policyFailures = 0
 		assigned := ""
 		if policy != nil {
 			assigned = policy.BatteryPreset
@@ -701,10 +712,19 @@ func (d *Daemon) checkPowerPolicy(source string, err error, observedSource, last
 		name = policy.ACPreset
 	}
 	if err := d.applyPreset(name); err != nil {
+		d.policyFailures++
+		if d.policyFailures >= powerPolicyMaxFailures {
+			// Each attempt rewrites profile and fan mode; stop until the source changes.
+			slog.Warn("giving up applying power preset until the power source changes", "source", source, "preset", name, "err", err)
+			*lastAppliedSource = source
+			*force = false
+			return
+		}
 		slog.Warn("failed to apply power preset; will retry", "source", source, "preset", name, "err", err)
 		*nextApply = time.Now().Add(powerPolicyRetry)
 		return
 	}
+	d.policyFailures = 0
 	*lastAppliedSource = source
 	*force = false
 }

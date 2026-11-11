@@ -83,6 +83,7 @@ func runButtonLoop(ctx context.Context, path string, ch chan<- struct{}) error {
 		_ = dev.Close()
 		return fmt.Errorf("exclusive grab failed: %w", err)
 	}
+	defer func() { _ = dev.Close() }() // read errors return without closing otherwise
 	slog.Info("watching Armoury Crate button", "path", path)
 
 	// Closing the device unblocks ReadOne when ctx is done.

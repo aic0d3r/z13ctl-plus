@@ -189,6 +189,26 @@ func TestCheckPowerPolicyNeverSpinsWithoutApplying(t *testing.T) {
 	}
 }
 
+func TestCheckPowerPolicyGivesUpAfterRepeatedFailures(t *testing.T) {
+	// A preset that does not exist fails before touching any hardware.
+	d := &Daemon{state: api.State{PowerPolicy: &api.PowerPolicy{
+		Enabled: true, ACPreset: "Missing", BatteryPreset: "Missing",
+	}}}
+	source := cli.PowerSourceAC
+	observed, applied := source, ""
+	force := true
+	for i := 1; i <= powerPolicyMaxFailures; i++ {
+		next := time.Now()
+		d.checkPowerPolicy(source, nil, &observed, &applied, &force, &next)
+		if wantGaveUp := i == powerPolicyMaxFailures; force == wantGaveUp {
+			t.Fatalf("attempt %d: force=%v, gave up=%v", i, force, wantGaveUp)
+		}
+	}
+	if applied != source {
+		t.Fatalf("lastAppliedSource = %q after giving up, want %q", applied, source)
+	}
+}
+
 func TestNextDisplayBackoff(t *testing.T) {
 	var backoff time.Duration
 	for range 10 {
