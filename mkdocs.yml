@@ -48,5 +48,6 @@ nav:
     - Commands: commands.md
     - Daemon: daemon.md
     - API: api.md
+  - Ecosystem: ecosystem.md
   - Protocol: protocol.md
   - Contributing: contributing.md
