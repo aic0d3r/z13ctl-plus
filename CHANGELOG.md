@@ -3,6 +3,12 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
+## Unreleased
+
+- An open drawer no longer makes the daemon run `kscreen-doctor` every
+  second: display reads are cached for 5 s and refreshed right after the
+  daemon changes the display itself.
+
 ## v2.6.1 (2026-11-11)
 
 - Detaching the keyboard no longer leaves a dead HID node that starves the
