@@ -44,8 +44,10 @@ const (
 // 180 = full speed). Order defines UI order.
 var supportedRefreshRates = []int{60, 180}
 
-// refreshCacheTTL bounds how stale a cached refresh-rate read may be.
-const refreshCacheTTL = time.Second
+// refreshCacheTTL bounds how stale a cached refresh-rate read may be. It must
+// exceed the drawer's 1 s state poll or nearly every poll spawns kscreen-doctor;
+// our own changes invalidate it, so only changes made elsewhere lag.
+const refreshCacheTTL = 5 * time.Second
 
 var (
 	refreshCacheMu      sync.Mutex
@@ -80,7 +82,7 @@ func ReadRefreshRate() int {
 }
 
 // ReadDisplaySummary reads eDP-1 and the other outputs in one kscreen-doctor
-// call. Results are cached for one second: callers poll this per get-state
+// call. Results are cached for refreshCacheTTL: callers poll this per get-state
 // request and each miss would spawn a kscreen-doctor process.
 func ReadDisplaySummary() DisplaySummary {
 	refreshCacheMu.Lock()
@@ -201,6 +203,7 @@ func ApplyInternalDisplay(scale float64, rotation string, hz int) error {
 	if len(args) == 0 {
 		return nil
 	}
+	defer invalidateDisplayCache()
 	ctx, cancel := context.WithTimeout(context.Background(), refreshTimeout)
 	defer cancel()
 	cmd := kscreenCommand(ctx, args...)
@@ -210,6 +213,13 @@ func ApplyInternalDisplay(scale float64, rotation string, hz int) error {
 		return fmt.Errorf("kscreen-doctor %s: %w%s", strings.Join(args, " "), err, suffixNonEmpty(stderr.String()))
 	}
 	return nil
+}
+
+// invalidateDisplayCache makes the next ReadDisplaySummary read KScreen again.
+func invalidateDisplayCache() {
+	refreshCacheMu.Lock()
+	refreshCacheAt = time.Time{}
+	refreshCacheMu.Unlock()
 }
 
 // kscreenCommand adds graphical-session variables that may have reached the
