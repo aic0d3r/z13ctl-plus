@@ -13,8 +13,6 @@ import (
 	"strings"
 )
 
-const usbDevicesDir = "/sys/bus/usb/devices"
-
 // FindCameraPath returns the "authorized" sysfs file of the built-in camera,
 // or "" when none is found.
 func FindCameraPath() string {

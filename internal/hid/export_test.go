@@ -22,8 +22,3 @@ var DeviceNameFromUevent = deviceNameFromUevent
 
 // HasDeviceGlob is the test-only export of hasDeviceGlob.
 var HasDeviceGlob = hasDeviceGlob
-
-// NewTestDeviceNamed creates a Device with one node named name at path.
-func NewTestDeviceNamed(f *os.File, path, name string) *Device {
-	return &Device{nodes: []hidrawNode{{path: path, name: name, f: f}}}
-}

@@ -32,7 +32,7 @@ type State struct {
 	PreAutomation      *Preset                  `json:"pre_automation,omitempty"` // settings restored when power automation is turned off
 	PowerSource        string                   `json:"power_source,omitempty"`   // live: "ac", "battery", or ""; persisted as the last source the daemon saw
 	TuningError        string                   `json:"tuning_error,omitempty"`   // live: last profile/fan/TDP/undervolt apply failed; the daemon retries. Empty = hardware matches the saved overrides
-	UndervoltAvailable bool                     `json:"undervolt_available"`      // true if ryzen_smu is loaded
+	UndervoltAvailable bool                     `json:"undervolt_available"`      // true if ryzen_smu answered the Curve Optimizer probe OK
 	CPUPower           *CPUPowerState           `json:"cpu_power,omitempty"`
 	RefreshRate        int                      `json:"refresh_rate,omitempty"`     // eDP-1 refresh rate in Hz (0 = unknown)
 	PanelOff           bool                     `json:"panel_off,omitempty"`        // eDP-1 is disabled (e.g. docked with only an external display on)
@@ -140,8 +140,6 @@ type BatteryState struct {
 	VoltageVolts   string  `json:"voltage_volts"`    // terminal voltage in volts
 	ThresholdPct   int     `json:"threshold_pct"`    // charge_control_end_threshold (40–100)
 	Charging       bool    `json:"charging"`         // true when Status == "Charging"
-	WhCurrent      int     `json:"wh_current"`       // energy_now in Wh (last full or current)
-	WhDesign       int     `json:"wh_design"`        // energy_full_design in Wh
 	EnergyNowWh    float64 `json:"energy_now_wh"`    // remaining energy_now in Wh
 	EnergyFullWh   float64 `json:"energy_full_wh"`   // current full-charge capacity in Wh
 	EnergyDesignWh float64 `json:"energy_design_wh"` // original energy_full_design in Wh

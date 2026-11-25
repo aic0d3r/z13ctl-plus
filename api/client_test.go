@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func captureRequest(t *testing.T, send func() (bool, error)) request {
+func captureRequest(t *testing.T, send func() (bool, error)) Request {
 	t.Helper()
 	runtimeDir := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
@@ -21,14 +21,14 @@ func captureRequest(t *testing.T, send func() (bool, error)) request {
 	}
 	defer listener.Close()
 
-	requestCh := make(chan request, 1)
+	requestCh := make(chan Request, 1)
 	go func() {
 		conn, acceptErr := listener.Accept()
 		if acceptErr != nil {
 			return
 		}
 		defer conn.Close()
-		var got request
+		var got Request
 		_ = json.NewDecoder(conn).Decode(&got)
 		requestCh <- got
 		_, _ = conn.Write([]byte("{\"ok\":true}\n"))
@@ -45,6 +45,41 @@ func assertCommandSent(t *testing.T, send func() (bool, error), want string) {
 	t.Helper()
 	if got := captureRequest(t, send); got.Cmd != want {
 		t.Fatalf("command = %q, want %q", got.Cmd, want)
+	}
+}
+
+func TestSubscribeFiltersEvents(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	if err := os.MkdirAll(filepath.Dir(SocketPath()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("unix", SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer conn.Close()
+		var req Request
+		_ = json.NewDecoder(conn).Decode(&req) // consume the request before replying
+		_, _ = conn.Write([]byte("{\"ok\":true}\n{\"ok\":false,\"event\":\"state-changed\"}\n{\"ok\":false,\"event\":\"gui-toggle\"}\n"))
+	}()
+
+	ch, cancel, err := Subscribe([]string{"gui-toggle"})
+	if err != nil || ch == nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+	defer cancel()
+	var got []string
+	for ev := range ch {
+		got = append(got, ev)
+	}
+	if len(got) != 1 || got[0] != "gui-toggle" {
+		t.Fatalf("events = %v, want [gui-toggle]", got)
 	}
 }
 
@@ -83,11 +118,11 @@ func TestTabletProtocol(t *testing.T) {
 		t.Fatalf("integration request = %+v", got)
 	}
 
-	data, err := json.Marshal(response{OK: true, State: &State{TabletSettings: settings, TabletIntegration: &status}})
+	data, err := json.Marshal(Response{OK: true, State: &State{TabletSettings: settings, TabletIntegration: &status}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var stateResponse response
+	var stateResponse Response
 	if err := json.Unmarshal(data, &stateResponse); err != nil {
 		t.Fatal(err)
 	}

@@ -37,7 +37,7 @@ func fakeSysfs(t *testing.T, withFan bool) (ppt, fan string) {
 			t.Fatal(err)
 		}
 	}
-	t.Cleanup(cli.UseSysfsRoots(ppt, hwmon))
+	t.Cleanup(cli.UseSysfsRoots(root))
 	return ppt, fan
 }
 

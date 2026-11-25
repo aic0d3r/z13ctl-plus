@@ -13,8 +13,6 @@ import (
 	"github.com/dahui/z13ctl/api"
 )
 
-const cpuFreqDir = "/sys/devices/system/cpu/cpufreq"
-
 // ReadCPUPower reads the current CPU frequency floor, EPP, and boost state.
 func ReadCPUPower() (api.CPUPowerState, error) {
 	return readCPUPower(cpuFreqDir)

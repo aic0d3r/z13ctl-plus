@@ -1,10 +1,5 @@
 // Package cli provides CLI input parsing, color resolution, dry-run display
-// helpers, and sysfs path discovery for z13ctl-plus subcommands.
-//
-// File layout:
-//
-//	colors.go  — named color table, ResolveColor, ColorDisplay, PrintColorList
-//	parse.go   — ParseColor, ParseBrightness
-//	dryrun.go  — DryRunApply, DryRunOff, DryRunBrightness
-//	sysfs.go   — sysfs path finders and setters (profile, battery, firmware)
+// helpers, and the sysfs/ioctl hardware readers and writers shared by the
+// z13ctl-plus subcommands and the daemon. Each file starts with a one-line
+// description; the file map is in AGENTS.md.
 package cli

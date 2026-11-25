@@ -18,7 +18,7 @@ const (
 
 // ReadPowerSource reports whether the system is running on AC or battery.
 func ReadPowerSource() (string, error) {
-	return readPowerSource("/sys/class/power_supply")
+	return readPowerSource(powerSupplyDir)
 }
 
 func readPowerSource(root string) (string, error) {

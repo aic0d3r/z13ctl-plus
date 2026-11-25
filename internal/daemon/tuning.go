@@ -181,6 +181,7 @@ func (d *Daemon) checkTuning(retryDue bool) (bool, error) {
 		state.Profile = current
 		d.mu.Lock()
 		d.state.Profile = current
+		d.state.ActivePreset = "" // a manual profile change ends the preset, as in handleProfile
 		d.mu.Unlock()
 		if err := d.persistState(); err != nil {
 			slog.Warn("failed to save state", "err", err)

@@ -14,8 +14,6 @@ import (
 	"sync"
 )
 
-const smuDriverPath = "/sys/kernel/ryzen_smu_drv"
-
 // MailboxMP1 is the MP1 sysfs mailbox used for SMU commands.
 const MailboxMP1 = "mp1_smu_cmd"
 

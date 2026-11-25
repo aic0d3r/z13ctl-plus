@@ -41,9 +41,14 @@ func findButtonDevice() string {
 	return ""
 }
 
+// buttonRetryMax caps the retry delay so a device that cannot be opened or
+// grabbed (pre-setup permissions, another grabber) does not flood the journal.
+const buttonRetryMax = time.Minute
+
 // watchButton runs until ctx is done, forwarding Armoury Crate button presses
 // to ch. It finds the device, runs the read loop, and retries on any error.
 func watchButton(ctx context.Context, ch chan<- struct{}) {
+	backoff := time.Second
 	for {
 		if ctx.Err() != nil {
 			return
@@ -58,19 +63,24 @@ func watchButton(ctx context.Context, ch chan<- struct{}) {
 			}
 			continue
 		}
+		started := time.Now()
 		if err := runButtonLoop(ctx, path, ch); err != nil {
-			slog.Info("button watcher stopped; retrying", "err", err, "delay", "1s")
+			if time.Since(started) > buttonRetryMax {
+				backoff = time.Second // the device worked for a while; start over
+			}
+			slog.Info("button watcher stopped; retrying", "err", err, "delay", backoff)
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(time.Second):
+			case <-time.After(backoff):
 			}
+			backoff = min(backoff*2, buttonRetryMax)
 		}
 	}
 }
 
 // runButtonLoop opens the device at path, grabs it exclusively, and forwards
-// KEY_PROG1 key-down events to ch until ctx is done or a read error occurs.
+// KEY_PROG3 key-down events to ch until ctx is done or a read error occurs.
 func runButtonLoop(ctx context.Context, path string, ch chan<- struct{}) error {
 	dev, err := evdev.Open(path)
 	if err != nil {

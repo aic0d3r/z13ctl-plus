@@ -164,7 +164,7 @@ func (d *doctor) checkFeatures(cfg setupConfig, state *api.State) {
 	}
 	feature(fileExists(cli.FindProfilePath()), "platform_profile", "asus-wmi not loaded?")
 	feature(cli.FindFanCurveHwmonPath() != "", "custom fan curves (asus_custom_fan_curve hwmon)", "kernel without asus-wmi fan curve support")
-	feature(fileExists("/sys/devices/platform/asus-nb-wmi/ppt_pl1_spl"), "TDP (asus-nb-wmi ppt_*)", "kernel without asus-nb-wmi PPT attributes")
+	feature(cli.Unsupported("tdp") == "", "TDP (asus-nb-wmi ppt_*)", "kernel without asus-nb-wmi PPT attributes")
 	feature(fileExists(cli.FindPanelOverdrivePath()), "asus-armoury firmware attributes", "Linux 6.19+ or the asus-armoury module")
 	feature(fileExists(cli.FindBatteryThresholdPath()), "battery charge limit", "no charge_control_end_threshold")
 

@@ -20,47 +20,12 @@ import (
 	"github.com/dahui/z13ctl/api"
 )
 
-// request and response mirror the unexported types in api/client.go.
-// They are intentionally duplicated: the api module is a separate Go module
-// (stdlib-only), so the daemon cannot share types with it across the module
-// boundary without making them public. Both sides must stay in sync with the
-// JSON wire protocol.
-
-// request is a command sent by a client over the socket.
-// One JSON object per newline-terminated message.
-type request struct {
-	Cmd               string                 `json:"cmd"`
-	Mode              string                 `json:"mode,omitempty"`
-	Color             string                 `json:"color,omitempty"`  // "RRGGBB" hex
-	Color2            string                 `json:"color2,omitempty"` // "RRGGBB" hex
-	Speed             string                 `json:"speed,omitempty"`
-	Brightness        int                    `json:"brightness,omitempty"`
-	Set               string                 `json:"set,omitempty"`
-	Device            string                 `json:"device,omitempty"` // "keyboard", "lightbar", /dev/hidrawN; empty = all
-	Events            []string               `json:"events,omitempty"`
-	PL1               string                 `json:"pl1,omitempty"`
-	PL2               string                 `json:"pl2,omitempty"`
-	PL3               string                 `json:"pl3,omitempty"`
-	Force             bool                   `json:"force,omitempty"`
-	Name              string                 `json:"name,omitempty"`
-	Enabled           *bool                  `json:"enabled,omitempty"`
-	ACPreset          string                 `json:"ac_preset,omitempty"`
-	BatPreset         string                 `json:"battery_preset,omitempty"`
-	Posture           string                 `json:"posture,omitempty"`
-	Rotation          string                 `json:"rotation,omitempty"`
-	TabletSettings    *api.TabletSettings    `json:"tablet_settings,omitempty"`
-	TabletIntegration *api.TabletIntegration `json:"tablet_integration,omitempty"`
-	Preset            *api.Preset            `json:"preset,omitempty"`
-}
-
-// response is the reply to a command or a streamed event notification.
-type response struct {
-	OK    bool       `json:"ok"`
-	Error string     `json:"error,omitempty"`
-	Value string     `json:"value,omitempty"`
-	State *api.State `json:"state,omitempty"`
-	Event string     `json:"event,omitempty"`
-}
+// The wire types are defined once, in the api module; the daemon builds
+// against it through the go.mod replace.
+type (
+	request  = api.Request
+	response = api.Response
+)
 
 // handleConn reads one JSON request, dispatches it, and writes one JSON response.
 // For "subscribe" requests the connection is kept open for event streaming.
@@ -427,6 +392,13 @@ func (d *Daemon) handleApply(req request) response {
 	mode, err := aura.ModeFromString(req.Mode)
 	if err != nil {
 		return response{OK: false, Error: "mode: " + err.Error()}
+	}
+	// Modes that ignore speed/color2 must not require them from socket clients.
+	if req.Speed == "" {
+		req.Speed = "normal"
+	}
+	if req.Color2 == "" {
+		req.Color2 = "000000"
 	}
 	speed, err := aura.SpeedFromString(req.Speed)
 	if err != nil {

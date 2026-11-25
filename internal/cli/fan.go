@@ -16,9 +16,6 @@ import (
 	"github.com/dahui/z13ctl/api"
 )
 
-// hwmonDir is a variable only so UseSysfsRoots can redirect it in tests.
-var hwmonDir = "/sys/class/hwmon"
-
 const (
 	// hwmon device names exposed by the asus-wmi kernel driver.
 	hwmonNameReadings = "asus"                  // fan RPM + pwm_enable

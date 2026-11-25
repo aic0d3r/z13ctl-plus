@@ -69,7 +69,7 @@ internal/
     aura.go                  Writer interface + Init/SetPower/SetBrightness/SetMode/Apply/TurnOff
     modes.go                 Mode and Speed constants + ModeFromString/SpeedFromString
   cli/                       CLI helpers shared by cmd/ and internal/daemon/
-    cli.go                   package doc file only
+    doc.go                   package doc file only
     colors.go                named color table, ResolveColor, PrintColorList
     parse.go                 ParseColor, ParseBrightness
     sysfs.go                 FindProfilePath, SetProfile, FindBatteryThresholdPath, FindBootSoundPath, SetBootSound, FindPanelOverdrivePath, SetPanelOverdrive, ReadAPUTemperature, FindBatteryCapacityPath
@@ -80,6 +80,16 @@ internal/
     undervolt_test.go        encodeCOValue, ValidateCOValues, smuResponseError tests
     fan_test.go              ParseFanCurve, FanModeName tests
     dryrun.go                DryRunApply, DryRunOff, DryRunBrightness, DryRunProfile, DryRunBatteryLimit, DryRunBootSound, DryRunPanelOverdrive, DryRunFanCurve, DryRunFanCurveReset, DryRunTdp, DryRunTdpReset, DryRunUndervolt, DryRunUndervoltReset
+    battery.go               power_supply battery detail (capacity, health, power, energy Wh)
+    camera.go                built-in USB camera discovery and on/off via `authorized`
+    cpu_power.go             cpufreq min frequency, EPP, boost read/write
+    capabilities.go          per-command hardware needs (Unsupported) and DetectCapabilities
+    power_source.go          AC/battery detection from power_supply
+    refresh.go               internal-panel refresh rate / display summary via kscreen-doctor
+    telemetry.go             iGPU (gpu_metrics) and CPU telemetry
+    npu.go                   amdxdna NPU power/utilization/clock via DRM ioctls
+    upstream.go              detection of a running upstream z13ctl daemon
+    testroots.go             sysfs root variables + UseSysfsRoots (tests redirect them to a temp tree)
   daemon/                    long-running daemon (socket server, state, button watcher)
     daemon.go                Package doc, Daemon struct, Run(), getListener() (socket activation)
     state.go                 XDG state file persistence (uses api.State/api.LightingState)
@@ -90,9 +100,10 @@ internal/
     server.go                JSON request handler; handleConn(), dispatch(), command handlers
     resume.go                DBus logind PrepareForSleep watcher; turns off lightbar on sleep, restores lighting + volatile state on resume
   hid/
-    hid.go                   package doc file only
+    doc.go                   package doc file only
     device.go                Device type, Write, Descriptions, Close
     scan.go                  FindDevice, ListDevices, sysfs discovery, hasAuraReport
+    testdevice.go            NewTestDeviceNamed (file-backed Device for tests in other packages)
     export_test.go           test-only exports: NewTestDevice, NewTestDeviceAnon,
                              UeventToDevPath, DeviceNameFromUevent
 contrib/
@@ -355,7 +366,7 @@ contrib/
   Before-package comments must be `// Package X ...` format (revive `package-comments`).
 - Every package has exactly one file with the package-doc comment (`// Package X ...`).
   For `cmd/`, that comment is in `root.go`. For `aura`, `hid`, and `cli`, there are
-  dedicated `aura.go`, `hid.go`, and `cli.go` doc files.
+  dedicated `aura.go`, `hid/doc.go`, and `cli/doc.go` doc files.
 - Octal literals must use `0o644` form (gocritic `octalLiteral`).
 - Do not use `filepath.Join` with arguments that contain path separators
   (gocritic `filepathJoin`); use string concatenation instead.
@@ -375,8 +386,9 @@ golangci-lint **v2** format. Config at `.golangci.yml`.
 
 - Hardware not required. `internal/aura` uses `mockWriter`; `internal/hid` uses
   `os.Pipe()` backed devices via `NewTestDevice`.
-- Current coverage: ~79% aura, ~97% cli, ~27% hid (hardware-bound scan functions
-  are untestable without a device).
+- Coverage: see `make cover`. hid scan functions are hardware-bound. Daemon
+  apply paths run against a fake sysfs tree via `cli.UseSysfsRoots(t.TempDir())`
+  (see `internal/daemon/sysfs_apply_test.go`); no `t.Parallel()` there.
 - aura error branches (write failures) are not covered because mockWriter never errors.
 
 ## Build / release

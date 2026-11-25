@@ -18,29 +18,21 @@ func pathExists(path string) bool {
 var commandNeeds = map[string]struct {
 	what string
 	has  func() bool
-}{}
-
-func init() {
-	battery := func() bool { return pathExists(FindBatteryThresholdPath()) }
-	boot := func() bool { return pathExists(FindBootSoundPath()) }
-	overdrive := func() bool { return pathExists(FindPanelOverdrivePath()) }
-	camera := func() bool { return FindCameraPath() != "" }
-	fan := func() bool { return FindFanCurveHwmonPath() != "" }
-	tdp := func() bool { return pathExists(pptBasePath + "/ppt_pl1_spl") }
-	for cmd, need := range map[string]struct {
-		what string
-		has  func() bool
-	}{
-		"batterylimit": {"a battery charge limit", battery}, "batterylimit-get": {"a battery charge limit", battery},
-		"bootsound": {"the ASUS boot sound attribute", boot}, "bootsound-get": {"the ASUS boot sound attribute", boot},
-		"paneloverdrive": {"the ASUS panel overdrive attribute", overdrive}, "paneloverdrive-get": {"the ASUS panel overdrive attribute", overdrive},
-		"camera": {"a built-in camera", camera}, "camera-get": {"a built-in camera", camera},
-		"fancurve": {"ASUS custom fan curves", fan}, "fancurve-get": {"ASUS custom fan curves", fan}, "fancurve-reset": {"ASUS custom fan curves", fan},
-		"tdp": {"ASUS PPT power limits", tdp}, "tdp-get": {"ASUS PPT power limits", tdp}, "tdp-reset": {"ASUS PPT power limits", tdp},
-	} {
-		commandNeeds[cmd] = need
-	}
+}{
+	"batterylimit": {"a battery charge limit", hasChargeLimit}, "batterylimit-get": {"a battery charge limit", hasChargeLimit},
+	"bootsound": {"the ASUS boot sound attribute", hasBootSound}, "bootsound-get": {"the ASUS boot sound attribute", hasBootSound},
+	"paneloverdrive": {"the ASUS panel overdrive attribute", hasOverdrive}, "paneloverdrive-get": {"the ASUS panel overdrive attribute", hasOverdrive},
+	"camera": {"a built-in camera", hasCamera}, "camera-get": {"a built-in camera", hasCamera},
+	"fancurve": {"ASUS custom fan curves", hasFanCurve}, "fancurve-get": {"ASUS custom fan curves", hasFanCurve}, "fancurve-reset": {"ASUS custom fan curves", hasFanCurve},
+	"tdp": {"ASUS PPT power limits", hasTDP}, "tdp-get": {"ASUS PPT power limits", hasTDP}, "tdp-reset": {"ASUS PPT power limits", hasTDP},
 }
+
+func hasChargeLimit() bool { return pathExists(FindBatteryThresholdPath()) }
+func hasBootSound() bool   { return pathExists(FindBootSoundPath()) }
+func hasOverdrive() bool   { return pathExists(FindPanelOverdrivePath()) }
+func hasCamera() bool      { return FindCameraPath() != "" }
+func hasFanCurve() bool    { return FindFanCurveHwmonPath() != "" }
+func hasTDP() bool         { return pathExists(pptBasePath + "/ppt_pl1_spl") }
 
 // Unsupported names the missing hardware when cmd cannot run on this machine,
 // or returns "" when it can (or needs no special hardware). It lets the daemon

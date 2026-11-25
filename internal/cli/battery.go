@@ -13,8 +13,6 @@ import (
 )
 
 const (
-	powerSupplyDir = "/sys/class/power_supply"
-
 	// µW → W conversion divisor. power_supply energy and power files use
 	// microwatts (per kernel Documentation/ABI/testing/sysfs-class-power-supply).
 	microwattsPerWatt = 1_000_000
@@ -47,14 +45,6 @@ func ReadBatteryState() (*api.BatteryState, error) {
 		}
 	}
 
-	// Current "last full charge" Wh. Use energy_now when charging, energy_full otherwise.
-	whCurrent := energyFull
-	if status == "Discharging" && energyNow > 0 {
-		whCurrent = energyNow
-	}
-	whCurrentW := whCurrent / microwattsPerWatt
-	whDesignW := energyDesign / microwattsPerWatt
-
 	return &api.BatteryState{
 		CapacityPct:    capacity,
 		Status:         status,
@@ -63,8 +53,6 @@ func ReadBatteryState() (*api.BatteryState, error) {
 		VoltageVolts:   formatMicro(voltageMicroV),
 		ThresholdPct:   threshold,
 		Charging:       status == "Charging",
-		WhCurrent:      whCurrentW,
-		WhDesign:       whDesignW,
 		EnergyNowWh:    float64(energyNow) / microwattsPerWatt,
 		EnergyFullWh:   float64(energyFull) / microwattsPerWatt,
 		EnergyDesignWh: float64(energyDesign) / microwattsPerWatt,

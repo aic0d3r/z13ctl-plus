@@ -18,9 +18,6 @@ const (
 	TDPMaxForced = 93 // absolute max for GZ302E (G-Helper)
 )
 
-// pptBasePath is a variable only so UseSysfsRoots can redirect it in tests.
-var pptBasePath = "/sys/devices/platform/asus-nb-wmi"
-
 // StockProfilePPT maps stock platform_profile names to their actual PPT values
 // as measured with ryzenadj on the 2025 Z13. The kernel's sysfs PPT attributes
 // are a stale cache (initialized to 5W on module load) and do not reflect the

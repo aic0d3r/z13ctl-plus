@@ -79,7 +79,7 @@ func DryRunProfile(profile string) {
 	fmt.Println("=== DRY RUN (no sysfs write) ===")
 	primary := FindProfilePath()
 	fmt.Printf("Would write %q to %s\n", profile, primary)
-	const dir = "/sys/class/platform-profile"
+	dir := platformProfileDir
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
