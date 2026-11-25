@@ -145,9 +145,19 @@ every successful command. It stores:
 
 On `get-state` requests the daemon also populates `temperature` (APU die
 temperature in °C), `fan_rpm` (fan speed in RPM), `cpu_power` (live cpufreq
-minimum, EPP, boost, and available limits), and `undervolt_available`
-(whether the `ryzen_smu` kernel module is present) from live sysfs reads.
-These are not persisted — they are real-time sensor values.
+minimum, EPP, boost, and available limits), `undervolt_available`
+(whether `ryzen_smu` accepts Curve Optimizer commands), and `tuning_error`
+from live reads. These are not persisted — they are real-time values.
+
+`tuning_error` is empty when the hardware matches the saved profile, fan
+curve, TDP, and undervolt. When an apply fails (at startup, on resume, or
+after a preset), it holds the error and the daemon retries with backoff
+(10 s doubling to 5 min); clients should show the saved overrides as not
+applied while it is set.
+
+If the state file cannot be parsed, or was written by a newer version (after
+a downgrade), the daemon moves it aside to `state.json.unusable-<time>` and
+starts with defaults instead of refusing to run.
 
 `get-state` also reports `capabilities`: one boolean per control that is not
 already implied by another field (`profile`, `fan_curve`, `tdp`, `battery`,
@@ -177,7 +187,17 @@ The opt-in context-menu gesture emits the context-menu key after a quick
 stationary two-finger hold (~650 ms); movement cancels it.
 
 On startup the daemon reads this file and independently restores each active fan
-curve, TDP, and undervolt override before accepting connections.
+curve, TDP, and undervolt override before accepting connections. A first start
+(no state file) seeds the two recommended presets but changes nothing: the
+charge limit and automatic AC/battery switching stay off until you enable them.
+
+## External profile changes
+
+Writing `platform_profile` resets the firmware power limits and undervolt. The
+daemon polls it every 2 s: when KDE's power slider (through
+power-profiles-daemon) or the Fn fan-profile hotkey changes it, the daemon
+adopts the new profile and reapplies the active fan, TDP, and undervolt
+overrides on top.
 
 !!! note "Raw hidrawN paths are not persisted"
     Commands sent with `--device /dev/hidraw2` (a raw path) are applied but
@@ -200,7 +220,14 @@ is left untouched. KWin remains the output owner.
 
 Manual preset changes are not continuously overwritten. On resume, an active
 named preset is restored in full; otherwise the daemon restores the current
-manual physical profile and active tuning overrides. Display posture intent is then
+manual physical profile and active tuning overrides. A daemon restart (for
+example a package upgrade) applies the assigned preset only if the power
+source changed while it was down; otherwise it restores the manual settings
+or the preset you applied by hand.
+
+A preset applies everything this machine supports: an undervolt without a
+working `ryzen_smu`, or a CPU value cpufreq does not offer, is skipped and
+logged, and the rest still applies. Display posture intent is then
 reconciled without replacing the manual choice with a source default.
 
 ---
@@ -216,9 +243,12 @@ sleep (suspend/hibernate) and must be reapplied on resume:
 - **Undervolt (Curve Optimizer)** — CO offsets reset to stock on every sleep cycle
 
 The daemon monitors D-Bus for `org.freedesktop.login1.Manager.PrepareForSleep`
-signals from systemd-logind. When the system resumes (`PrepareForSleep(false)`),
-the daemon restores lighting (regardless of profile) and each independently
-active volatile override from its saved state.
+signals from systemd-logind. It holds a logind sleep delay lock, so the
+lightbar is off before the system suspends. When the system resumes
+(`PrepareForSleep(false)`), the daemon restores lighting (regardless of
+profile) and each independently active volatile override from its saved
+state. If the system bus connection drops, the watcher reconnects with
+backoff.
 
 This happens transparently with no user intervention. You can verify it worked
 by checking the daemon logs after a resume:
@@ -239,8 +269,10 @@ effect is not restored.
 
 The daemon opens the hidraw devices once at startup, so a reattached keyboard
 appears as a brand-new device node that the original handle no longer references.
-To recover, the daemon polls sysfs every couple of seconds for the keyboard
-reappearing. On detecting it, the daemon reopens the HID devices and re-applies
+To recover, the daemon checks every couple of seconds whether the keyboard that
+is plugged in is the one it holds open. When it is not (reattached, re-enumerated
+between two checks, or not openable at startup), the daemon reopens the HID
+devices, retrying with backoff until the keyboard opens, and re-applies
 the saved lighting state — honoring per-device overrides, so a keyboard-specific
 color/mode is restored exactly as you last set it.
 

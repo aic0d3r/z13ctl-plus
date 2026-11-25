@@ -26,6 +26,8 @@ compatibility, not runtime-name compatibility. Root Go module and repository:
   co-installed. Package installation leaves the Plus user daemon disabled.
   Enable only one project's hardware daemon. The Plus CLI checks only the Plus
   socket, so do not mix an upstream daemon with Plus direct-fallback commands.
+  The Plus user unit has `Conflicts=z13ctl.service z13ctl.socket` (runtime
+  guard, not a package conflict) and the daemon warns if upstream's socket answers.
 - v1 shared the legacy `z13ctl` runtime namespace. `z13ctl-plus migrate-state`
   validates and copies legacy state only when Plus state is absent. It never
   changes services or removes source state/artifacts. Legacy paths are
@@ -58,7 +60,9 @@ cmd/                         Cobra subcommands
   fancurve.go                get/set/reset custom fan curves (hwmon sysfs)
   tdp.go                     get/set/reset TDP power limits (asus-nb-wmi PPT sysfs)
   undervolt.go               get/set/reset CPU Curve Optimizer offsets via ryzen_smu
-  status.go                  display system status (temperature, fans, profile, TDP, battery)
+  status.go                  display system status (daemon health, preset, overrides, temperature, fans, profile, TDP, battery)
+  doctor.go                  installation checks with a fix per failure (group, sysfs access, rules, services, daemon, ryzen_smu)
+  cpu.go                     cpu (min/EPP/boost), refresh, reset-overrides commands
   setup.go                   install udev rules; applySysfsPerms helper (HID, hwmon, PPT, firmware-attributes, ryzen_smu)
 internal/
   aura/                      Aura HID protocol implementation
@@ -110,9 +114,15 @@ contrib/
   addressed; each physical device silently ignores the other zone's packets.
 - `profile.go` and `batterylimit.go` use path discovery via `/sys/class/*/` rather
   than hardcoded paths, so udev-chmoded device inodes are used (not the ACPI alias).
-- `setup.go` uses a two-part permission strategy: udev rules for boot persistence
-  (real ADD events) + direct `chgrp`/`chmod` in Go for immediate effect (systemd 259+
-  does not execute `RUN{program}` on synthetic `udevadm trigger` events).
+- **Permissions have one source**: `permissionTargets()` in `cmd/setup.go`. `setup`
+  applies it directly (systemd 259+ does not execute `RUN{program}` on synthetic
+  `udevadm trigger` events); the udev rules (real ADD events, incl. module loads)
+  and `z13ctl-plus-perms.service` both run `z13ctl-plus setup --perms-only`.
+  `setup` saves `--group`/`--undervolt` in `/etc/z13ctl-plus/setup.conf`;
+  without the file it infers them from the installed rules and the current
+  `ryzen_smu` mode. Raw ryzen_smu write access is opt-in (`--undervolt`) because
+  any group member could bypass the -40 cap. `doctor` checks the same list.
+  Contrib rules/service must equal the generated ones (`setup_test.go`).
 - `--dry-run` is a global persistent flag; each command checks `dryRunFlag` and
   calls the appropriate `cli.DryRun*` function.
 - `--no-button` is a global persistent flag; only affects the daemon subcommand.
@@ -141,7 +151,12 @@ contrib/
   new source must stay stable 2 s before its preset applies. Presets apply only
   at startup or a real source transition; manual non-fan changes clear
   `ActivePreset` and last until the next transition. Applying continues past a
-  failed step and reports all failures together. Enabling automation stores the
+  failed step and reports all failures together; `skipUnavailable` drops parts
+  the machine cannot apply (undervolt without working ryzen_smu, EPP/CPU-min
+  not offered) before applying. A fresh install seeds the presets with
+  automation off and no charge limit. At startup the assigned preset applies
+  only if the power source differs from the persisted `State.PowerSource`;
+  otherwise manual settings (or the hand-applied preset) are restored. Enabling automation stores the
   current settings in `State.PreAutomation` (persisted); disabling re-applies
   them unless a manual change cleared `ActivePreset` in between. Refresh intent
   is handled by the shared display coordinator rather than issuing independent
@@ -305,21 +320,32 @@ contrib/
   (`PrepareForSleep(true)`), turns off the lightbar via `aura.TurnOff()` (the
   keyboard turns off automatically in hardware, but the lightbar does not).
   On resume (`PrepareForSleep(false)`), restores lighting (regardless of profile)
-  and reapplies volatile state: fan curves, TDP, and undervolt (when custom
-  profile is active). Uses `github.com/godbus/dbus/v5`.
+  and reapplies volatile state: fan curves, TDP, and undervolt. Holds a logind
+  `delay` sleep inhibitor (released after the lightbar-off write) and
+  reconnects a private system-bus connection with backoff. Uses
+  `github.com/godbus/dbus/v5`.
+- **Verified tuning**: every full `applyTuning` result is recorded
+  (`recordTuning`) and exposed live as `State.TuningError`. `watchTuning`
+  (internal/daemon/tuning.go) polls `platform_profile` every 2 s: an external
+  change (PPD/KDE slider, Fn hotkey) is adopted as `State.Profile` and the active
+  overrides are reapplied; a recorded failure is retried with backoff
+  (10 s doubling to 5 min). It holds `applyMu`, which every daemon profile write
+  holds, so a mismatch is always external.
+- **Unusable state**: `loadOrRecoverState` moves corrupt or newer-schema state to
+  `state.json.unusable-<unix>` and starts fresh instead of exiting.
 - **Keyboard hotplug watcher**: `internal/daemon/hotplug.go` handles the
   detachable keyboard. The keyboard (`0b05:1a30`) is its own HID device that
   loses power when detached; on reattach the firmware does not restore the
   previous RGB effect. The daemon opens the HID device once at startup and holds
   `d.dev`, so after a detach/reattach cycle the keyboard appears as a *new* hidraw
-  node that the stale `d.dev` never references. `watchHotplug()` polls
-  `hid.HasDevice("keyboard")` (sysfs-only presence check, no device open) every 2s;
-  on an absent → present transition it calls `reopenAndRestore()`, which re-runs
+  node that the stale `d.dev` never references. Every 2 s `watchHotplug()` compares
+  `hid.HasDevice("keyboard")` with `d.dev.Holds("keyboard")` (held, and the /dev
+  node is still the opened file); when the keyboard is present but not held live
+  (startup open failed, re-enumerated between polls) or gone but still held, it
+  calls `reopenAndRestore()` (backoff up to 1 min while it fails), which re-runs
   `hid.FindDevice("")` under `d.mu`, swaps in the new device (closing the old one),
   and re-applies saved lighting via the existing `applyLightingState()` (honoring
-  per-device overrides). If the reopen fails — e.g. udev has not yet chmod'd the new
-  hidraw node — the watcher does not latch the present state and retries on the next
-  tick. No action is taken on detach (the keyboard powers off in hardware). Run()'s
+  per-device overrides). Run()'s
   device-close defer closes whatever `d.dev` currently is, since hotplug may have
   replaced it.
 
@@ -413,10 +439,10 @@ The daemon is fully implemented and passing `make build && make test && make lin
 - `ATTR{name}=="asus-wmi"` was removed from the platform-profile udev rule because
   platform-profile class devices do not have a `name` sysfs attribute file. The rule
   now matches `SUBSYSTEM=="platform-profile"` alone.
-- `z13ctl-plus-perms.service` (system-level oneshot) runs `chmod g+w` on
-  `BAT*/charge_control_end_threshold` and firmware-attributes `current_value` files
-  after `sysinit.target`. This is necessary because these attributes may be created
-  after observable udev events — so no udev `RUN+=` hook can catch them reliably.
+- `z13ctl-plus-perms.service` (system-level oneshot) runs
+  `z13ctl-plus setup --perms-only` after `sysinit.target`, because some attributes
+  (`BAT*/charge_control_end_threshold`, PPT, cpufreq) appear after every udev event
+  that could grant them.
 
 **To activate on this machine (must be done once after each `sudo z13ctl-plus setup`):**
 ```sh
@@ -432,7 +458,7 @@ The `z13gui-plus` overlay and the `api/` submodule are complete and released.
   `github.com/dahui/z13ctl/api`, selected by Plus clients through a replacement.
 - `z13gui-plus` (repo `aic0d3r/z13gui-plus`) is a GTK4 Wayland/Gamescope overlay
   drawer talking to the daemon through `api/`.
-- Current release: **v2.1.0** (main) and **api/v1.5.0** (submodule).
+- Current release: **v2.6.1** (main) and **api/v1.10.0** (submodule).
 
 **Fork API release boundary:** Root `vX.Y.Z` tags in `aic0d3r/z13ctl-plus` do not
 publish the canonical `github.com/dahui/z13ctl/api` module. Plus clients select

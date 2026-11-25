@@ -5,6 +5,47 @@ release-notes.md (gitignored) is the scratch file for the next entry.
 
 ## Unreleased
 
+- The daemon reports when saved overrides are not applied (`tuning_error` in
+  `get-state`, shown by `status` and `doctor`) and retries with backoff.
+- Profile changes made outside z13ctl-plus (KDE's power slider, the Fn
+  fan-profile hotkey) are adopted and the active TDP, undervolt and fan
+  overrides are reapplied instead of being silently lost.
+- A preset skips what the machine cannot apply (undervolt without a working
+  `ryzen_smu`, unavailable EPP or CPU minimum) and applies the rest, so a
+  broken `ryzen_smu` no longer stops AC/battery switching.
+- The keyboard is reopened when it could not be opened at startup or
+  re-enumerated between two checks.
+- An unreadable or newer-schema state file is moved aside instead of keeping
+  the daemon from starting.
+- A daemon restart (package upgrade) keeps manual settings when the power
+  source did not change.
+- **Behaviour change:** a fresh install no longer sets an 80% charge limit or
+  turns on AC/battery switching; enable them explicitly.
+- The daemon takes a logind sleep delay lock so the lightbar turns off before
+  suspend, and reconnects to the system bus if the connection drops.
+- At sustained TDP above 75 W a user fan curve must now match the safety ramp
+  at every temperature; a flat 50% curve no longer replaces it.
+- **Permissions:** the boot service and udev rules now run
+  `z13ctl-plus setup --perms-only`, so all three grant the same files (udev
+  now also covers every battery, cpufreq and `ryzen_smu` module loads).
+  `setup` remembers `--group` and `--undervolt` in
+  `/etc/z13ctl-plus/setup.conf`; package upgrades no longer reset a custom
+  group or disable the permissions service on RPM.
+- **Behaviour change:** raw `ryzen_smu` access is opt-in:
+  `sudo z13ctl-plus setup --undervolt`. Installs that already had access keep
+  it on the first run after upgrading.
+- The user unit conflicts with upstream `z13ctl`, and the daemon warns when an
+  upstream daemon is running.
+- New commands: `doctor`, `cpu`, `refresh`, `reset-overrides`,
+  `preset rename`, `preset edit`. `preset list` shows every value, and preset
+  commands confirm success.
+- `status` shows daemon health, automation, the active preset and overrides.
+- The CLI says when a change bypassed a stopped daemon (not restored after
+  sleep/reboot) and when automation will replace a manual change; `sudo`
+  commands reach the invoking user's daemon. A daemon socket that exists but
+  cannot be reached is an error instead of a silent direct write.
+- `kscreen-doctor` is read as JSON; `powerprofilesctl` calls time out after
+  5 s.
 - New tablet setting `disable_touchscreen_in_laptop` (default off) keeps the
   touchscreen off in laptop posture (folio attached). CLI:
   `tablet settings set --disable-touchscreen-in-laptop`. Needs z13-tablet-kit

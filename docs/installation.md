@@ -41,6 +41,9 @@ make
 sudo make install
 ```
 
+Undervolt access is opt-in. After installing z13ctl-plus, grant it with
+`sudo z13ctl-plus setup --undervolt` (see [What setup does](#what-setup-does)).
+
 ### NPU telemetry on CachyOS
 
 CachyOS kernels that provide amdxdna natively should use that in-tree module.
@@ -292,6 +295,14 @@ package-owned files.
 ## Verify the installation
 
 ```sh
+z13ctl-plus doctor
+```
+
+`doctor` checks group membership, write access to every controlled file, the
+udev rules and boot service, the daemon (and a conflicting upstream daemon),
+`ryzen_smu`, and kernel support. Each problem is printed with its fix.
+
+```sh
 z13ctl-plus list
 ```
 
@@ -327,34 +338,33 @@ guide to set your first lighting effect, fan curve, and performance profile.
 
 ## What `setup` does
 
-`sudo z13ctl-plus setup` performs four steps:
+`sudo z13ctl-plus setup` performs these steps:
 
-1. Writes `/etc/udev/rules.d/99-z13ctl-plus.rules` — grants the `users` group
-   `MODE=0660` / `GROUP=users` on the ASUS HID and input device nodes; uses
-   `RUN+=chgrp/chmod` to set permissions on the platform-profile attribute,
-   hwmon fan curve attributes (`asus_custom_fan_curve` + `asus` pwm_enable),
-   and asus-nb-wmi PPT power limit attributes when the drivers load.
-2. Reloads udev and applies permissions immediately to all currently present
-   files — including `ryzen_smu` sysfs files for undervolting (if the module
-   is loaded).
-3. Writes `/etc/systemd/system/z13ctl-plus-perms.service` and enables it — a
-   `Type=oneshot` service that runs `chgrp` + `chmod g+w` on
-   `BAT*/charge_control_end_threshold` and `ryzen_smu_drv` sysfs files at boot.
-4. Starts the service immediately so battery limit and undervolt are accessible
-   right away.
+1. Saves the group (`--group`, default: the saved one, else `users`) and the
+   undervolt choice (`--undervolt`) in `/etc/z13ctl-plus/setup.conf`, so the
+   boot service, udev and package upgrades keep them.
+2. Writes `/etc/udev/rules.d/99-z13ctl-plus.rules` — `MODE=0660` and the
+   group on the ASUS HID and button device nodes, and
+   `z13ctl-plus setup --perms-only` on every relevant device or module add
+   event (platform profile, battery, firmware attributes, fan hwmon, PPT,
+   camera, `ryzen_smu`/`amd_pstate` module loads).
+3. Applies permissions immediately to every controlled file present now.
+4. Writes and enables `/etc/systemd/system/z13ctl-plus-perms.service`, a
+   oneshot that runs `z13ctl-plus setup --perms-only` at boot, for attributes
+   created after every udev event (the battery threshold appears late in
+   `asus_nb_wmi` probe).
 
-!!! note "Why a separate oneshot service for battery and ryzen_smu?"
-    The `charge_control_end_threshold` sysfs attribute is added by the
-    `asus_nb_wmi` kernel driver late in its `probe()` sequence — after all
-    observable udev child-device events have already fired. The `ryzen_smu`
-    files are kobjects under `/sys/kernel/`, not udev-managed devices. There
-    is no udev hook that can reliably target either. The `z13ctl-plus-perms.service`
-    unit is a self-contained workaround that runs at `sysinit.target`. It has
-    no dependency on the z13ctl-plus binary and can be inspected at any time:
+The udev rules, the boot service, and `setup` all apply one list of files, so
+they always grant the same access. Inspect the service with
+`systemctl cat z13ctl-plus-perms.service`.
 
-    ```sh
-    systemctl cat z13ctl-plus-perms.service
-    ```
+!!! warning "Undervolt access is opt-in"
+    Undervolting writes raw commands to `ryzen_smu`. With `--undervolt`, any
+    member of the group can send arbitrary SMU commands, so the -40 Curve
+    Optimizer limit only holds for z13ctl-plus itself. Prefer a group only you
+    belong to (`--group`). Without `--undervolt`, the group-write bit is
+    removed from the `ryzen_smu` files. Existing installs that already had
+    access keep it on the first run after upgrading.
 
 Use `--dry-run` to preview all changes without root or any side effects:
 

@@ -135,15 +135,27 @@ applying one keeps the current fan mode. The daemon must be running.
 z13ctl-plus preset list
 z13ctl-plus preset save Gaming
 z13ctl-plus preset apply Gaming
+z13ctl-plus preset edit Gaming --tdp 60:70:80 --undervolt -20 --refresh 180
+z13ctl-plus preset edit Gaming --undervolt none --epp performance --boost on
+z13ctl-plus preset rename Gaming Games
 z13ctl-plus preset delete Gaming
 z13ctl-plus preset restore-recommended
 z13ctl-plus preset policy --enable --ac "Plugged In" --battery "On Battery"
 z13ctl-plus preset policy --disable
 ```
 
-The first daemon start on a fresh installation sets an 80% charge limit and
-creates two deterministic presets. Existing state files are migrated as needed
-but are never replaced by fresh defaults:
+`preset edit` changes only the values you pass (`--profile`, `--tdp
+PL1[:PL2[:PL3]]|none`, `--undervolt N|none`, `--cpu-min KHZ`, `--epp`,
+`--boost on|off`, `--refresh 60|180|0`, `--panel-overdrive 0|1|-1`) and
+reapplies the preset if it is active. A preset skips what the machine cannot
+apply (for example an undervolt while `ryzen_smu` is unavailable) and applies
+the rest.
+
+The first daemon start on a fresh installation creates two deterministic
+presets but changes nothing: automatic switching and the charge limit stay off
+until you enable them (`preset policy --enable`, `batterylimit --set`).
+Existing state files are migrated as needed but are never replaced by fresh
+defaults:
 
 | Preset | Defaults |
 |--------|----------|
@@ -156,8 +168,8 @@ presets and the configured battery charge limit are preserved.
 
 Automatic switching runs in the user daemon, not a root udev rule. It changes
 the KDE display mode through KWin/KScreen and only acts at startup or an actual
-AC transition. A manually applied preset remains active until the next
-power-source transition.
+AC transition. A manually applied preset or a manual change remains until the
+next power-source transition; the CLI says so when automation is on.
 
 Saving an existing name updates that preset. A preset assigned to AC or battery
 cannot be deleted until another preset is assigned in its place.
@@ -497,26 +509,79 @@ z13ctl-plus --dry-run undervolt --set -20
 
 ## status
 
-Display a summary of all system metrics in a single view: APU temperature, fan
-speed and mode, performance profile, TDP power limits, undervolt status, and
-battery charge level with charge limit.
+Display a summary of all system metrics in a single view: daemon health
+(automation, power source, active preset, active overrides, and a warning when
+the daemon could not apply them), APU temperature, fan speed and mode,
+performance profile, TDP power limits, undervolt, and battery charge level
+with charge limit.
 
 ```
 z13ctl-plus status
 ```
 
-This command is read-only and takes no flags. All values are read directly from
-sysfs (except undervolt, which has no sysfs readback — shows `ryzen_smu`
-module availability).
+This command is read-only and takes no flags. Undervolt has no sysfs readback:
+it is shown from the daemon, whose probe also proves the `ryzen_smu` fork
+works.
 
 ```sh
 z13ctl-plus status
-# APU:       62°C
-# Fans:      4200 RPM, mode: auto
-# Profile:   balanced
-# TDP:       52W (PL1) / 71W (PL2) / 70W (PL3)
-# Undervolt: available (ryzen_smu loaded)
-# Battery:   74% (limit: 80%)
+# Daemon:  running
+# Auto:    on (AC=Plugged In, Battery=On Battery); manual changes last until the next plug or unplug
+# Power:   ac
+# Preset:  Plugged In
+# Overrides: TDP
+# APU:     62°C
+# Profile: balanced
+# TDP:     52W (PL1) / 71W (PL2) / 70W (PL3)
+# UV:      available, not set
+# Battery: 74% (limit: 80%)
+```
+
+---
+
+## doctor
+
+Check the installation and print a fix for every problem: group membership,
+write access to every controlled file, udev rules, the permissions service,
+the daemon (and a running upstream `z13ctl` daemon), saved overrides that are
+not applied, `ryzen_smu` (loaded, access granted, right fork), and kernel
+support. Exits non-zero when something fails.
+
+```sh
+z13ctl-plus doctor
+```
+
+---
+
+## cpu
+
+Get or set the amd-pstate controls presets also manage.
+
+```sh
+z13ctl-plus cpu --get
+z13ctl-plus cpu --min 1500000 --epp balance_performance --boost on
+```
+
+---
+
+## refresh
+
+Get or set the built-in panel refresh rate (60 or 180 Hz).
+
+```sh
+z13ctl-plus refresh --get
+z13ctl-plus refresh --set 60
+```
+
+---
+
+## reset-overrides
+
+Drop the fan curve, TDP, and undervolt overrides together and return to the
+profile defaults. Requires the daemon.
+
+```sh
+z13ctl-plus reset-overrides
 ```
 
 ---
@@ -539,8 +604,8 @@ not require the daemon to be running.
 Install udev rules and a boot service granting a group read/write access to
 the ASUS HID devices, performance profile, battery charge limit, firmware
 attributes (boot sound, panel overdrive), hwmon fan curve attributes,
-asus-nb-wmi PPT power limit attributes for TDP control, and ryzen_smu sysfs
-files for undervolting (if the module is loaded).
+asus-nb-wmi PPT power limit attributes for TDP control, CPU power controls,
+the camera switch, and (opt-in) ryzen_smu for undervolting.
 
 ```
 sudo z13ctl-plus setup [flags]
@@ -548,7 +613,14 @@ sudo z13ctl-plus setup [flags]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--group` | `users` | Group to grant device access to |
+| `--group` | saved group, else `users` | Group to grant device access to |
+| `--undervolt` | saved choice, else off | Also grant raw `ryzen_smu` access (any group member can then send SMU commands) |
+| `--perms-only` | off | Only reapply sysfs permissions (what the boot service and udev run) |
+
+The chosen group and undervolt setting are saved in
+`/etc/z13ctl-plus/setup.conf`, so package upgrades and later runs keep them.
+When run with sudo, setup tells you if your user still needs to join the
+group.
 
 Use `--dry-run` to preview exactly what would be written — no root required:
 
