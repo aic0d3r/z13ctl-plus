@@ -3,9 +3,9 @@ package api
 // client.go — socket client for communicating with the z13ctl-plus daemon.
 //
 // Each Send* function connects to the daemon's Unix socket, sends one JSON
-// command, and reads one JSON response. If the daemon is not running
-// (connection refused), functions return (false, nil) so callers can fall
-// back to direct hardware access.
+// command, and reads one JSON response. If the daemon is not running (no
+// socket, or connection refused), functions return (false, nil) so callers can
+// fall back to direct hardware access. Other connection errors are returned.
 //
 // Subscribe opens a long-lived connection and returns a channel that receives
 // event name strings streamed by the daemon.
@@ -13,10 +13,12 @@ package api
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -74,11 +76,16 @@ type response struct {
 }
 
 // sendCommand connects to the daemon and sends req, returning the response.
-// Returns (false, nil, nil) if the daemon is not running.
+// Returns (false, nil, nil) only if the daemon is not running (no socket, or
+// connection refused). Any other connection failure, such as permission
+// denied, is reported as an error instead of silently bypassing the daemon.
 func sendCommand(req request) (bool, *response, error) {
 	conn, err := net.DialTimeout("unix", SocketPath(), time.Second)
 	if err != nil {
-		return false, nil, nil // daemon not running
+		if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED) {
+			return false, nil, nil // daemon not running
+		}
+		return true, nil, fmt.Errorf("cannot reach the z13ctl-plus daemon at %s: %w", SocketPath(), err)
 	}
 	defer func() { _ = conn.Close() }()
 	// Bound the whole exchange: a daemon stuck on a hardware write must not

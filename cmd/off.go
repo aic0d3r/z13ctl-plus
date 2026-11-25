@@ -40,6 +40,7 @@ var offCmd = &cobra.Command{
 			return err
 		}
 		fmt.Println("Lighting off.")
+		noteDirect()
 		return nil
 	},
 }

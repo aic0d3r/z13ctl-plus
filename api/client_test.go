@@ -138,6 +138,33 @@ func TestSocketPath(t *testing.T) {
 	}
 }
 
+func TestSendCommandOnlyFallsBackWhenDaemonIsAbsent(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	if handled, err := SendOff(""); handled || err != nil {
+		t.Fatalf("no socket: handled %t, err %v; want fallback", handled, err)
+	}
+
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	dir := filepath.Dir(SocketPath())
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("unix", SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	if err := os.Chmod(dir, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chmod(dir, 0o700) }()
+	if handled, err := SendOff(""); !handled || err == nil {
+		t.Fatalf("permission denied: handled %t, err %v; want an error, not a silent fallback", handled, err)
+	}
+}
+
 func TestTabletSettingsPath(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", "/run/user/1000")
 	want := "/run/user/1000/z13ctl-plus/tablet-settings.json"

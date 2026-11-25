@@ -65,6 +65,7 @@ Levels:
 			return err
 		}
 		fmt.Printf("Brightness set to %s (%s)\n", args[0], strings.Join(dev.Descriptions(), ", "))
+		noteDirect()
 		return nil
 	},
 }

@@ -6,6 +6,9 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +34,33 @@ battery charge limit via asus-wmi sysfs, and boot sound and panel overdrive
 via asus-armoury firmware-attributes.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	PersistentPreRun: func(_ *cobra.Command, _ []string) {
+		useInvokingUserRuntimeDir()
+	},
+}
+
+// useInvokingUserRuntimeDir lets `sudo z13ctl-plus ...` reach the invoking
+// user's daemon: sudo drops XDG_RUNTIME_DIR, so the socket would be looked up
+// under /tmp and the command would silently bypass the daemon.
+func useInvokingUserRuntimeDir() {
+	uid := os.Getenv("SUDO_UID")
+	if os.Geteuid() != 0 || uid == "" || os.Getenv("XDG_RUNTIME_DIR") != "" {
+		return
+	}
+	if dir := "/run/user/" + uid; dirExists(dir) {
+		_ = os.Setenv("XDG_RUNTIME_DIR", dir)
+	}
+}
+
+func dirExists(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.IsDir()
+}
+
+// noteDirect tells the user a change bypassed the daemon (not running), so it
+// is neither saved nor restored after sleep or reboot.
+func noteDirect() {
+	fmt.Fprintln(os.Stderr, "note: z13ctl-plus daemon not running; applied directly. It will not be restored after sleep or reboot.")
 }
 
 // Execute runs the root command.

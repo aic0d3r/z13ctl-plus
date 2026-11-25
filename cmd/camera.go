@@ -60,7 +60,8 @@ Values:
 			if err := cli.SetCamera(value); err != nil {
 				return fmt.Errorf("setting camera: %w\n  (run 'sudo z13ctl-plus setup' to enable non-root access)", err)
 			}
-			fmt.Printf("Camera set to %d (not remembered: the daemon is not running)\n", value)
+			fmt.Printf("Camera set to %d\n", value)
+			noteDirect()
 			return nil
 		}
 

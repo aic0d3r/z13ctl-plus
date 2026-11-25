@@ -60,6 +60,7 @@ Range: 40–100. Writing 100 removes any limit (charges to full).`,
 				return fmt.Errorf("setting battery limit: %w\n  (run 'sudo z13ctl-plus setup' to enable non-root access)", err)
 			}
 			fmt.Printf("Battery charge limit set to %d%%\n", limit)
+			noteDirect()
 			return nil
 		}
 

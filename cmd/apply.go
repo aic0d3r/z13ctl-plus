@@ -85,6 +85,7 @@ var applyCmd = &cobra.Command{
 				return err
 			}
 			target = strings.Join(dev.Descriptions(), ", ")
+			defer noteDirect() // after the "Applied:" line
 		}
 
 		parts := []string{"Applied:"}

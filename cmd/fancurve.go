@@ -116,6 +116,7 @@ func runFanCurveSet() error {
 		return fmt.Errorf("setting fan curves: %w\n  (run 'sudo z13ctl-plus setup' to enable non-root access)", err)
 	}
 	fmt.Println("Fan curves set for both fans (custom mode enabled)")
+	noteDirect()
 	return nil
 }
 
@@ -136,6 +137,7 @@ func runFanCurveReset() error {
 		return fmt.Errorf("resetting fan curves: %w\n  (run 'sudo z13ctl-plus setup' to enable non-root access)", err)
 	}
 	fmt.Println("Fan curves reset to auto mode (both fans)")
+	noteDirect()
 	return nil
 }
 

@@ -137,6 +137,7 @@ func runTdpSet() error {
 			return err
 		}
 		fmt.Printf("TDP set to %dW\n", watts)
+		noteAutomation()
 		return nil
 	}
 
@@ -159,6 +160,7 @@ func runTdpSet() error {
 		cli.LiftHighTDPFanCurve()
 	}
 	fmt.Printf("TDP set to %dW\n", watts)
+	noteDirect()
 	return nil
 }
 
@@ -181,6 +183,7 @@ func runTdpReset() error {
 		return fmt.Errorf("resetting TDP for %s profile: %w\n  (run 'sudo z13ctl-plus setup' to enable non-root access)", profile, err)
 	}
 	fmt.Printf("TDP reset to %s profile defaults\n", profile)
+	noteDirect()
 	return nil
 }
 

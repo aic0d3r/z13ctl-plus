@@ -52,6 +52,7 @@ Profiles:
 					return err
 				}
 				fmt.Printf("Performance profile set to %s\n", profile)
+				noteAutomation()
 				return nil
 			}
 
@@ -62,6 +63,7 @@ Profiles:
 				return fmt.Errorf("resetting profile fan curve: %w", err)
 			}
 			fmt.Printf("Performance profile set to %s\n", profile)
+			noteDirect()
 			return nil
 		}
 

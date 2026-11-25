@@ -116,13 +116,15 @@ func runUndervoltSet() error {
 			return err
 		}
 		fmt.Printf("Curve Optimizer set: CPU %d\n", cpuOffset)
+		noteAutomation()
 		return nil
 	}
 
 	if err := cli.SetCurveOptimizer(cpuOffset); err != nil {
-		return fmt.Errorf("setting curve optimizer: %w\n  (run 'sudo z13ctl-plus setup' to enable non-root access)", err)
+		return fmt.Errorf("setting curve optimizer: %w\n  (run 'sudo z13ctl-plus setup --undervolt' to enable non-root access)", err)
 	}
 	fmt.Printf("Curve Optimizer set: CPU %d\n", cpuOffset)
+	noteDirect()
 	return nil
 }
 
@@ -141,9 +143,10 @@ func runUndervoltReset() error {
 	}
 
 	if err := cli.ResetCurveOptimizer(); err != nil {
-		return fmt.Errorf("resetting curve optimizer: %w\n  (run 'sudo z13ctl-plus setup' to enable non-root access)", err)
+		return fmt.Errorf("resetting curve optimizer: %w\n  (run 'sudo z13ctl-plus setup --undervolt' to enable non-root access)", err)
 	}
 	fmt.Println("Curve Optimizer reset to stock (0)")
+	noteDirect()
 	return nil
 }
 

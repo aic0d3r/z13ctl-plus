@@ -52,6 +52,7 @@ Values:
 					return err
 				}
 				fmt.Printf("Panel overdrive set to %d\n", value)
+				noteAutomation()
 				return nil
 			}
 
@@ -59,6 +60,7 @@ Values:
 				return fmt.Errorf("setting panel overdrive: %w\n  (run 'sudo z13ctl-plus setup' to enable non-root access)", err)
 			}
 			fmt.Printf("Panel overdrive set to %d\n", value)
+			noteDirect()
 			return nil
 		}
 
