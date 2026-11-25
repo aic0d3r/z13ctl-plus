@@ -2,6 +2,8 @@
 Description=z13ctl-plus device daemon
 Requires=z13ctl-plus.socket
 After=z13ctl-plus.socket
+# Two daemons would fight over the same hardware; starting this one stops upstream.
+Conflicts=z13ctl.service z13ctl.socket
 
 [Service]
 Type=notify

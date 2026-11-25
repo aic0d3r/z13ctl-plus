@@ -20,12 +20,23 @@ func effectiveLines(s string) []string {
 	return lines
 }
 
+func TestSetupConfigRoundTrip(t *testing.T) {
+	setupConfPath = t.TempDir() + "/z13ctl-plus/setup.conf"
+	want := setupConfig{Group: "z13", Undervolt: true}
+	if err := saveSetupConfig(want); err != nil {
+		t.Fatal(err)
+	}
+	if got, saved := loadSetupConfig(); !saved || got != want {
+		t.Fatalf("loadSetupConfig() = %+v, saved %t; want %+v", got, saved, want)
+	}
+}
+
 func TestContribMatchesGeneratedSetupFiles(t *testing.T) {
 	for _, tc := range []struct {
 		name, path, generated string
 	}{
-		{"udev rules", "../contrib/udev/99-z13ctl-plus.rules", buildRulesContent("users")},
-		{"perms service", "../contrib/systemd/system/z13ctl-plus-perms.service", buildServiceContent("users")},
+		{"udev rules", "../contrib/udev/99-z13ctl-plus.rules", buildRulesContent("users", packagedBinary)},
+		{"perms service", "../contrib/systemd/system/z13ctl-plus-perms.service", buildServiceContent(packagedBinary)},
 	} {
 		data, err := os.ReadFile(tc.path)
 		if err != nil {

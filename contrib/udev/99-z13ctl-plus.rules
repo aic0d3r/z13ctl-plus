@@ -1,24 +1,20 @@
 # 99-z13ctl-plus.rules — z13ctl-plus ASUS ROG Flow Z13 device access
 #
-# Grants members of the users group read/write access to:
-#   - ASUS HID devices used for keyboard and lightbar RGB control
-#   - asus-wmi platform-profile attribute for performance profile control
-#   - asus-nb-wmi battery charge_control_end_threshold for battery limit control
-#   - Armoury Crate button input device for daemon button watcher
-#   - asus-armoury firmware-attributes (boot_sound, panel_overdrive)
-#   - hwmon fan curve attributes (asus_custom_fan_curve + asus pwm_enable)
-#   - asus-nb-wmi PPT power limit attributes for TDP control
-#   - the built-in USB camera's authorized attribute for the camera switch
+# Device nodes (HID RGB devices, Armoury Crate button) get group users here.
+# sysfs attributes (profile, battery limit, firmware attributes, fans, PPT,
+# camera, CPU power, opt-in ryzen_smu) are granted by "z13ctl-plus setup
+# --perms-only", run on each relevant device or module add event and by
+# z13ctl-plus-perms.service at boot, using the group saved in
+# /etc/z13ctl-plus/setup.conf.
 #
 # To use a different group, run: sudo z13ctl-plus setup --group=<group>
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="18c6", MODE="0660", GROUP="users"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1a30", MODE="0660", GROUP="users"
-ACTION=="add", SUBSYSTEM=="platform-profile", RUN+="/usr/bin/chgrp users /sys%p/profile", RUN+="/usr/bin/chmod g+w /sys%p/profile"
-ACTION=="add", SUBSYSTEM=="platform-profile", KERNELS=="asus-nb-wmi", RUN+="/usr/bin/chgrp users /sys/class/power_supply/BAT0/charge_control_end_threshold", RUN+="/usr/bin/chmod g+w /sys/class/power_supply/BAT0/charge_control_end_threshold"
 ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Asus WMI hotkeys", MODE="0660", GROUP="users"
-ACTION=="add", SUBSYSTEM=="firmware-attributes", KERNEL=="asus-armoury", RUN+="/usr/bin/chgrp users /sys/class/firmware-attributes/asus-armoury/attributes/boot_sound/current_value", RUN+="/usr/bin/chmod g+w /sys/class/firmware-attributes/asus-armoury/attributes/boot_sound/current_value"
-ACTION=="add", SUBSYSTEM=="firmware-attributes", KERNEL=="asus-armoury", RUN+="/usr/bin/chgrp users /sys/class/firmware-attributes/asus-armoury/attributes/panel_overdrive/current_value", RUN+="/usr/bin/chmod g+w /sys/class/firmware-attributes/asus-armoury/attributes/panel_overdrive/current_value"
-ACTION=="add", SUBSYSTEM=="hwmon", ATTR{name}=="asus_custom_fan_curve", RUN+="/bin/sh -c 'chgrp users /sys%p/pwm*; chmod g+w /sys%p/pwm*'"
-ACTION=="add", SUBSYSTEM=="hwmon", ATTR{name}=="asus", RUN+="/bin/sh -c 'for f in /sys%p/pwm*_enable; do [ -e \"$$f\" ] && chgrp users \"$$f\" && chmod g+w \"$$f\"; done'"
-ACTION=="add", SUBSYSTEM=="platform", KERNEL=="asus-nb-wmi", RUN+="/bin/sh -c 'for f in /sys/devices/platform/asus-nb-wmi/ppt_*; do [ -e \"$$f\" ] && chgrp users \"$$f\" && chmod g+w \"$$f\"; done'"
-ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{removable}=="fixed", ATTR{product}=="*[Ww]ebcam*|*[Cc]amera*", RUN+="/usr/bin/chgrp users /sys%p/authorized", RUN+="/usr/bin/chmod g+w /sys%p/authorized"
+ACTION=="add", SUBSYSTEM=="platform-profile", RUN+="/usr/bin/z13ctl-plus setup --perms-only"
+ACTION=="add", SUBSYSTEM=="platform", KERNEL=="asus-nb-wmi", RUN+="/usr/bin/z13ctl-plus setup --perms-only"
+ACTION=="add", SUBSYSTEM=="power_supply", KERNEL=="BAT*", RUN+="/usr/bin/z13ctl-plus setup --perms-only"
+ACTION=="add", SUBSYSTEM=="firmware-attributes", KERNEL=="asus-armoury", RUN+="/usr/bin/z13ctl-plus setup --perms-only"
+ACTION=="add", SUBSYSTEM=="hwmon", ATTR{name}=="asus_custom_fan_curve|asus", RUN+="/usr/bin/z13ctl-plus setup --perms-only"
+ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{removable}=="fixed", ATTR{product}=="*[Ww]ebcam*|*[Cc]amera*", RUN+="/usr/bin/z13ctl-plus setup --perms-only"
+ACTION=="add", SUBSYSTEM=="module", KERNEL=="ryzen_smu|amd_pstate|asus_armoury|asus_nb_wmi", RUN+="/usr/bin/z13ctl-plus setup --perms-only"

@@ -1,20 +1,14 @@
 [Unit]
-Description=z13ctl-plus sysfs permissions (battery + firmware-attributes + PPT + CPU power + ryzen_smu)
-# charge_control_end_threshold on BAT0 is created by asus_nb_wmi late in probe(),
-# after all observable udev child-device events. udev RUN+= cannot catch it.
-# firmware-attributes current_value files may be created after the parent ADD event.
-# PPT attributes are also created too late for the asus-nb-wmi udev ADD rule.
-# ryzen_smu files live under /sys/kernel and have no suitable udev event.
-After=sysinit.target
+Description=z13ctl-plus sysfs permissions
+# Some attributes appear after every udev event that could grant them
+# (charge_control_end_threshold late in asus_nb_wmi probe, PPT, cpufreq),
+# so apply the full list once the system is up.
+After=sysinit.target systemd-modules-load.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/sh -c 'for f in /sys/class/power_supply/BAT*/charge_control_end_threshold; do [ -e "$$f" ] && chgrp users "$$f" && chmod g+w "$$f"; done || true'
-ExecStart=/bin/sh -c 'for f in /sys/class/firmware-attributes/asus-armoury/attributes/boot_sound/current_value /sys/class/firmware-attributes/asus-armoury/attributes/panel_overdrive/current_value; do [ -e "$$f" ] && chgrp users "$$f" && chmod g+w "$$f"; done || true'
-ExecStart=/bin/sh -c 'for f in /sys/devices/platform/asus-nb-wmi/ppt_*; do [ -e "$$f" ] && chgrp users "$$f" && chmod g+w "$$f"; done || true'
-ExecStart=/bin/sh -c 'for f in /sys/devices/system/cpu/cpufreq/boost /sys/devices/system/cpu/cpufreq/policy*/scaling_min_freq /sys/devices/system/cpu/cpufreq/policy*/energy_performance_preference; do [ -e "$$f" ] && chgrp users "$$f" && chmod g+w "$$f"; done || true'
-ExecStart=/bin/sh -c 'for f in /sys/kernel/ryzen_smu_drv/smu_args /sys/kernel/ryzen_smu_drv/mp1_smu_cmd; do [ -e "$$f" ] && chgrp users "$$f" && chmod g+w "$$f" || true; done || true'
+ExecStart=/usr/bin/z13ctl-plus setup --perms-only
 
 [Install]
 WantedBy=multi-user.target

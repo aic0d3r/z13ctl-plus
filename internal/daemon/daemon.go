@@ -70,6 +70,11 @@ func Run(ctx context.Context, watchBtn bool) error {
 		displayCh: make(chan struct{}, 1),
 	}
 
+	if cli.UpstreamDaemonRunning() {
+		slog.Warn("the upstream z13ctl daemon is also running; both control the same hardware. Disable one: systemctl --user disable --now z13ctl.socket z13ctl.service",
+			"socket", cli.UpstreamSocketPath())
+	}
+
 	var fresh bool
 	var err error
 	d.state, fresh, err = loadOrRecoverState()
