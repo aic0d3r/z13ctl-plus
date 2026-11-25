@@ -92,6 +92,26 @@ func (d *Device) FilteredView(nameOrPath string) (*Device, error) {
 	return &Device{nodes: matched}, nil
 }
 
+// Holds reports whether d has at least one node named name, and whether all of
+// them are still live: their /dev path refers to the opened file. A device
+// that re-enumerated gets a new node even when it reuses the hidrawN number,
+// so a stale handle is caught even if no poll saw it disappear.
+func (d *Device) Holds(name string) (held, live bool) {
+	live = true
+	for _, n := range d.nodes {
+		if n.name != name {
+			continue
+		}
+		held = true
+		opened, err := n.f.Stat()
+		current, perr := os.Stat(n.path)
+		if err != nil || perr != nil || !os.SameFile(opened, current) {
+			live = false
+		}
+	}
+	return held, held && live
+}
+
 // Close releases all open nodes.
 func (d *Device) Close() {
 	for _, n := range d.nodes {

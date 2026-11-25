@@ -7,15 +7,22 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/dahui/z13ctl/api"
 )
 
 var stateSaveMu sync.Mutex
+
+// errUnusableState marks a state file that exists but can never load as is
+// (corrupt JSON, or a newer schema after a downgrade).
+var errUnusableState = errors.New("unusable state file")
 
 func defaultTabletSettings() api.TabletSettings {
 	return api.TabletSettings{
@@ -115,10 +122,10 @@ func loadState() (api.State, bool, error) {
 	}
 	var s api.State
 	if err := json.Unmarshal(data, &s); err != nil {
-		return api.State{}, false, fmt.Errorf("parse state: %w", err)
+		return api.State{}, false, fmt.Errorf("%w: parse: %v", errUnusableState, err)
 	}
 	if s.SchemaVersion > api.StateSchemaVersion {
-		return api.State{}, false, fmt.Errorf("state schema %d is newer than supported schema %d", s.SchemaVersion, api.StateSchemaVersion)
+		return api.State{}, false, fmt.Errorf("%w: schema %d is newer than supported schema %d", errUnusableState, s.SchemaVersion, api.StateSchemaVersion)
 	}
 	s.TabletIntegration = nil
 	changed := migrateState(&s, readProfileFromSysfs())
@@ -130,6 +137,22 @@ func loadState() (api.State, bool, error) {
 		_ = saveState(s)
 	}
 	return s, false, nil
+}
+
+// loadOrRecoverState loads state; an unusable file is moved aside (kept for
+// the user to inspect or restore after an upgrade) and the daemon starts as a
+// fresh install instead of refusing to run.
+func loadOrRecoverState() (api.State, bool, error) {
+	s, fresh, err := loadState()
+	if !errors.Is(err, errUnusableState) {
+		return s, fresh, err
+	}
+	backup := fmt.Sprintf("%s.unusable-%d", StatePath(), time.Now().Unix())
+	if mvErr := os.Rename(StatePath(), backup); mvErr != nil {
+		return api.State{}, false, fmt.Errorf("%w (moving it aside failed: %v)", err, mvErr)
+	}
+	slog.Error("state file unusable; moved aside, starting with defaults", "err", err, "backup", backup)
+	return defaultState(), true, nil
 }
 
 func migrateState(s *api.State, physicalProfile string) bool {

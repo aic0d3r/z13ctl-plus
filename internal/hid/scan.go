@@ -70,7 +70,7 @@ func findAll() (*Device, error) {
 
 	if len(nodes) == 0 {
 		return nil, fmt.Errorf(
-			"no ASUS Aura devices found (keyboard / lightbar); try sudo or add a udev rule:\n" +
+			"no ASUS Aura devices found (keyboard / lightbar); run \"sudo z13ctl-plus setup\" or add a udev rule:\n" +
 				"  SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"0b05\", MODE=\"0660\", GROUP=\"users\"",
 		)
 	}
@@ -99,13 +99,13 @@ func findByName(want string) (*Device, error) {
 	}
 	if nameFound {
 		return nil, fmt.Errorf(
-			"no Aura-capable node found for %q; try sudo or add a udev rule:\n"+
+			"no Aura-capable node found for %q; run \"sudo z13ctl-plus setup\" or add a udev rule:\n"+
 				"  SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"0b05\", MODE=\"0660\", GROUP=\"users\"",
 			want,
 		)
 	}
 	return nil, fmt.Errorf(
-		"%q device not found; try sudo or add a udev rule:\n"+
+		"%q device not found; run \"sudo z13ctl-plus setup\" or add a udev rule:\n"+
 			"  SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"0b05\", MODE=\"0660\", GROUP=\"users\"",
 		want,
 	)

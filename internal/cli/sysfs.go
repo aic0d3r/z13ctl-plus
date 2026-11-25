@@ -3,6 +3,7 @@ package cli
 // sysfs.go — sysfs path discovery helpers shared by cmd/ and internal/daemon/.
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // FindProfilePath returns the writable sysfs path for the ASUS platform-profile attribute.
@@ -95,11 +97,14 @@ func setPPD(asusProfile string) {
 	if err != nil {
 		return
 	}
+	// Callers hold the hardware lock: a hung PPD must not stall the daemon.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	// PPD installed but not running (stopped or masked): nothing to sync.
-	if exec.Command(bin, "get").Run() != nil {
+	if exec.CommandContext(ctx, bin, "get").Run() != nil {
 		return
 	}
-	if out, err := exec.Command(bin, "set", ppd).CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, bin, "set", ppd).CombinedOutput(); err != nil {
 		// PPD's amd-pstate driver restores profiles by writing per-policy
 		// boost files, which the kernel rejects (EINVAL) while the global
 		// boost file is 0 — z13ctl writes the global one. PPD then sticks on

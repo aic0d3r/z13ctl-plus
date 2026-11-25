@@ -73,7 +73,8 @@ func TestSetDefaultPowerConfiguration(t *testing.T) {
 	state := defaultState()
 	setDefaultPowerConfiguration(&state, 625000)
 
-	if state.Profile != "balanced" || state.Battery != 80 {
+	// A fresh install must not change the charge limit or start automation.
+	if state.Profile != "balanced" || state.Battery != 0 {
 		t.Fatalf("baseline = profile %q, battery %d", state.Profile, state.Battery)
 	}
 	if len(state.Presets) != 2 {
@@ -113,8 +114,59 @@ func TestSetDefaultPowerConfiguration(t *testing.T) {
 	}
 
 	policy := state.PowerPolicy
-	if policy == nil || !policy.Enabled || policy.ACPreset != "Plugged In" || policy.BatteryPreset != "On Battery" {
+	if policy == nil || policy.Enabled || policy.ACPreset != "Plugged In" || policy.BatteryPreset != "On Battery" {
 		t.Fatalf("policy = %+v", policy)
+	}
+}
+
+func TestSkipUnavailableKeepsTheRest(t *testing.T) {
+	preset := api.Preset{
+		Profile:   "performance",
+		TDP:       &api.TDPState{PL1SPL: 60, PL2SPPT: 70, FPPT: 80},
+		Undervolt: &api.UndervoltState{CPUCO: -20},
+		CPUPower:  &api.CPUPowerPreset{MinFrequencyKHz: 100, EPP: "turbo", Boost: true},
+	}
+	cpu := &api.CPUPowerState{MinFrequencyKHz: 600000, MinLimitKHz: 600000, MaxLimitKHz: 5000000,
+		EPP: "balance_power", EPPChoices: []string{"balance_power", "power"}}
+
+	got, skipped := skipUnavailable(preset, false, cpu)
+	if len(skipped) != 3 {
+		t.Errorf("skipped = %v, want undervolt, CPU minimum and EPP", skipped)
+	}
+	if got.Undervolt != nil || got.TDP == nil || got.Profile != "performance" {
+		t.Errorf("undervolt should be dropped and the rest kept: %+v", got)
+	}
+	if got.CPUPower.MinFrequencyKHz != 600000 || got.CPUPower.EPP != "balance_power" || !got.CPUPower.Boost {
+		t.Errorf("unavailable CPU values should fall back to the current ones: %+v", got.CPUPower)
+	}
+	if preset.Undervolt == nil || preset.CPUPower.EPP != "turbo" {
+		t.Error("skipUnavailable modified its input")
+	}
+
+	if got, skipped = skipUnavailable(preset, true, nil); got.CPUPower != nil || got.Undervolt == nil || len(skipped) != 1 {
+		t.Errorf("unreadable cpufreq: got %+v skipped %v", got, skipped)
+	}
+}
+
+func TestInitialPolicyPreset(t *testing.T) {
+	on := &api.PowerPolicy{Enabled: true, ACPreset: "AC", BatteryPreset: "Bat"}
+	tests := []struct {
+		name              string
+		policy            *api.PowerPolicy
+		last, now, active string
+		want              string
+	}{
+		{"policy off", &api.PowerPolicy{ACPreset: "AC"}, "", "ac", "", ""},
+		{"no policy", nil, "", "ac", "", ""},
+		{"source changed while down", on, "battery", "ac", "", "AC"},
+		{"first run with policy", on, "", "battery", "", "Bat"},
+		{"same source keeps manual settings", on, "ac", "ac", "", ""},
+		{"same source keeps chosen preset", on, "ac", "ac", "Gaming", "Gaming"},
+	}
+	for _, tt := range tests {
+		if got := initialPolicyPreset(tt.policy, tt.last, tt.now, tt.active); got != tt.want {
+			t.Errorf("%s: got %q, want %q", tt.name, got, tt.want)
+		}
 	}
 }
 

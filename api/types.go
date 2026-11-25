@@ -30,7 +30,8 @@ type State struct {
 	PowerPolicy        *PowerPolicy             `json:"power_policy,omitempty"`
 	ActivePreset       string                   `json:"active_preset,omitempty"`
 	PreAutomation      *Preset                  `json:"pre_automation,omitempty"` // settings restored when power automation is turned off
-	PowerSource        string                   `json:"power_source,omitempty"`   // live: "ac", "battery", or ""
+	PowerSource        string                   `json:"power_source,omitempty"`   // live: "ac", "battery", or ""; persisted as the last source the daemon saw
+	TuningError        string                   `json:"tuning_error,omitempty"`   // live: last profile/fan/TDP/undervolt apply failed; the daemon retries. Empty = hardware matches the saved overrides
 	UndervoltAvailable bool                     `json:"undervolt_available"`      // true if ryzen_smu is loaded
 	CPUPower           *CPUPowerState           `json:"cpu_power,omitempty"`
 	RefreshRate        int                      `json:"refresh_rate,omitempty"`     // eDP-1 refresh rate in Hz (0 = unknown)

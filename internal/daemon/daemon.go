@@ -50,6 +50,8 @@ type Daemon struct {
 	displayCh      chan struct{}
 	// Guarded by applyMu: posture the panel scale was last reconciled for.
 	scalePosture string
+	// Guarded by mu: last tuning apply error, "" when the hardware matches.
+	tuningErr string
 
 	subMu       sync.Mutex
 	subscribers []net.Conn // long-lived connections subscribed to events
@@ -70,7 +72,7 @@ func Run(ctx context.Context, watchBtn bool) error {
 
 	var fresh bool
 	var err error
-	d.state, fresh, err = loadState()
+	d.state, fresh, err = loadOrRecoverState()
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
 	}
@@ -108,7 +110,9 @@ func Run(ctx context.Context, watchBtn bool) error {
 	// control, but always restore each independently active override.
 	if !policyManaged && isPhysicalProfile(d.state.Profile) {
 		current, _ := cli.ReadTrimmedFile(cli.FindProfilePath())
-		if tuningErr := applyTuning(d.state, current != d.state.Profile); tuningErr != nil {
+		tuningErr := applyTuning(d.state, current != d.state.Profile)
+		d.recordTuning(tuningErr)
+		if tuningErr != nil {
 			slog.Warn("failed to restore profile tuning", "err", tuningErr)
 		} else {
 			slog.Info("profile tuning restored", "profile", d.state.Profile)
@@ -149,6 +153,8 @@ func Run(ctx context.Context, watchBtn bool) error {
 	go d.watchDisplay(ctx)
 
 	go d.watchHotplug(ctx)
+
+	go d.watchTuning(ctx)
 
 	ln, err := d.getListener()
 	if err != nil {

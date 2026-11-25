@@ -178,7 +178,7 @@ func ResetAllFanCurves() error {
 
 // HighTDPFanCurve returns an 8-point fan curve with a minimum PWM of 50%,
 // suitable for sustained TDP above 75W. Users can replace this with a custom
-// curve as long as all PWM values stay at or above HighTDPMinPWM.
+// curve that passes CheckHighTDPFanCurve.
 // The curve ramps up with temperature and reaches full speed at 80°C.
 func HighTDPFanCurve() []api.FanCurvePoint {
 	return []api.FanCurvePoint{
@@ -191,6 +191,30 @@ func HighTDPFanCurve() []api.FanCurvePoint {
 		{Temp: 75, PWM: 235},
 		{Temp: 80, PWM: 255},
 	}
+}
+
+// CheckHighTDPFanCurve returns an error unless points run the fans at least as
+// hard as HighTDPFanCurve at every one of its temperatures, so a flat 50% curve
+// cannot replace the ramp at high sustained TDP. Points must be sorted by
+// temperature (ParseFanCurve enforces this); below the first point the fan
+// speed is treated as 0.
+func CheckHighTDPFanCurve(points []api.FanCurvePoint) error {
+	if len(points) == 0 {
+		return fmt.Errorf("empty fan curve")
+	}
+	for _, s := range HighTDPFanCurve() {
+		pwm := 0
+		for _, p := range points {
+			if p.Temp <= s.Temp {
+				pwm = p.PWM
+			}
+		}
+		if pwm < s.PWM {
+			return fmt.Errorf("fan PWM %d at %d°C is below the %d required when sustained TDP is above %dW",
+				pwm, s.Temp, s.PWM, TDPMaxSafe)
+		}
+	}
+	return nil
 }
 
 // LiftHighTDPFanCurve resets both fans to firmware auto mode if the current

@@ -4,10 +4,41 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/aic0d3r/z13ctl-plus/internal/hid"
 )
+
+func TestHoldsDetectsReplacedNode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hidraw3")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	dev := hid.NewTestDeviceNamed(f, path, "keyboard")
+
+	if held, live := dev.Holds("keyboard"); !held || !live {
+		t.Fatalf("fresh node: held %t live %t", held, live)
+	}
+	if held, _ := dev.Holds("lightbar"); held {
+		t.Error("holds a lightbar it never opened")
+	}
+	// Re-enumeration: same path, new node.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if held, live := dev.Holds("keyboard"); !held || live {
+		t.Errorf("replaced node: held %t live %t, want held and not live", held, live)
+	}
+}
 
 // pipeDevice returns a write-end-backed Device and the read end of the pipe.
 func pipeDevice(t *testing.T) (*hid.Device, *os.File) {

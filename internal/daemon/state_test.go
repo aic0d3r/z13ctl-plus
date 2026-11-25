@@ -206,6 +206,17 @@ func TestLoadState_InvalidJSON(t *testing.T) {
 	if _, fresh, err := loadState(); err == nil || fresh {
 		t.Fatalf("invalid state load = fresh %t, err %v", fresh, err)
 	}
+
+	// The daemon recovers: the bad file is kept aside and defaults load.
+	if _, fresh, err := loadOrRecoverState(); err != nil || !fresh {
+		t.Fatalf("recover = fresh %t, err %v", fresh, err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("unusable state was not moved aside")
+	}
+	if backups, _ := filepath.Glob(path + ".unusable-*"); len(backups) != 1 {
+		t.Errorf("backups = %v, want one", backups)
+	}
 }
 
 func TestLoadState_ExistingEmptyStateIsNotFresh(t *testing.T) {

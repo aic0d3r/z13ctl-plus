@@ -13,6 +13,8 @@ package daemon
 import (
 	"context"
 	"log/slog"
+	"os"
+	"time"
 
 	"github.com/dahui/z13ctl/api"
 	"github.com/godbus/dbus/v5"
@@ -21,15 +23,63 @@ import (
 	"github.com/aic0d3r/z13ctl-plus/internal/cli"
 )
 
-// watchResume connects to the system DBus and listens for resume events.
-// When PrepareForSleep(false) is received, restoreVolatileState is called.
-// Blocks until ctx is cancelled.
+const resumeReconnectMax = time.Minute
+
+// watchResume listens for sleep, resume, lid and power-source signals on the
+// system bus until ctx is cancelled, reconnecting with backoff when the bus
+// connection drops so resume restore never silently stops.
 func (d *Daemon) watchResume(ctx context.Context) {
-	conn, err := dbus.SystemBus()
+	backoff := time.Second
+	for {
+		started := time.Now()
+		d.watchResumeOnce(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		if time.Since(started) > resumeReconnectMax {
+			backoff = time.Second
+		}
+		slog.Warn("system DBus watcher stopped; reconnecting", "in", backoff)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+		backoff = min(backoff*2, resumeReconnectMax)
+	}
+}
+
+// takeSleepDelayLock asks logind to delay sleep until the returned file is
+// closed, so the lightbar-off write finishes before the system suspends.
+// logind caps the delay (InhibitDelayMaxSec, 5 s by default).
+func takeSleepDelayLock(conn *dbus.Conn) *os.File {
+	var fd dbus.UnixFD
+	err := conn.Object("org.freedesktop.login1", "/org/freedesktop/login1").Call(
+		"org.freedesktop.login1.Manager.Inhibit", 0,
+		"sleep", "z13ctl-plus", "Turn off the lightbar before sleep", "delay",
+	).Store(&fd)
+	if err != nil {
+		slog.Warn("cannot take logind sleep delay lock; lightbar may stay on during sleep", "err", err)
+		return nil
+	}
+	return os.NewFile(uintptr(fd), "logind-sleep-delay")
+}
+
+// watchResumeOnce runs one system bus connection until it drops or ctx ends.
+func (d *Daemon) watchResumeOnce(ctx context.Context) {
+	// A private connection: closing it here must not affect other bus users.
+	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		slog.Warn("cannot connect to system DBus for resume watcher", "err", err)
 		return
 	}
+	defer func() { _ = conn.Close() }()
+	lock := takeSleepDelayLock(conn)
+	defer func() {
+		if lock != nil {
+			_ = lock.Close()
+		}
+	}()
 
 	if err := conn.AddMatchSignal(
 		dbus.WithMatchInterface("org.freedesktop.login1.Manager"),
@@ -53,6 +103,8 @@ func (d *Daemon) watchResume(ctx context.Context) {
 	ch := make(chan *dbus.Signal, 8)
 	conn.Signal(ch)
 	slog.Info("resume watcher started (PrepareForSleep + UPower lid)")
+	// OnBattery changes may have been missed while disconnected.
+	d.requestPowerCheck()
 
 	for {
 		select {
@@ -69,7 +121,23 @@ func (d *Daemon) watchResume(ctx context.Context) {
 			}
 			switch sig.Name {
 			case "org.freedesktop.login1.Manager.PrepareForSleep":
-				d.handlePrepareForSleep(sig)
+				sleeping, ok := prepareForSleepArg(sig)
+				if !ok {
+					continue
+				}
+				if sleeping {
+					d.prepareForSleep()
+					if lock != nil {
+						_ = lock.Close() // lets the suspend proceed
+						lock = nil
+					}
+					continue
+				}
+				if lock == nil {
+					lock = takeSleepDelayLock(conn)
+				}
+				slog.Info("system resumed from sleep, restoring volatile state")
+				d.restoreVolatileState()
 			case "org.freedesktop.DBus.Properties.PropertiesChanged":
 				if sig.Path != "/org/freedesktop/UPower" {
 					continue
@@ -86,31 +154,29 @@ func (d *Daemon) watchResume(ctx context.Context) {
 	}
 }
 
-// handlePrepareForSleep turns lighting off before sleep and restores all
-// volatile state (lighting, TDP, fans, undervolt) on resume.
-func (d *Daemon) handlePrepareForSleep(sig *dbus.Signal) {
+// prepareForSleepArg returns PrepareForSleep's argument: true before sleep,
+// false after resume.
+func prepareForSleepArg(sig *dbus.Signal) (sleeping, ok bool) {
 	if len(sig.Body) < 1 {
-		return
+		return false, false
 	}
-	sleeping, ok := sig.Body[0].(bool)
-	if !ok {
-		return
-	}
-	if sleeping {
-		slog.Info("system entering sleep")
-		// Hold d.mu across the device use: the hotplug watcher may otherwise
-		// swap (and close) d.dev mid-write.
-		d.mu.Lock()
-		defer d.mu.Unlock()
-		if d.dev != nil {
-			if err := aura.TurnOff(d.dev); err != nil {
-				slog.Warn("failed to turn off lighting before sleep", "err", err)
-			}
+	sleeping, ok = sig.Body[0].(bool)
+	return sleeping, ok
+}
+
+// prepareForSleep turns the lighting off; the keyboard goes dark by itself
+// but the lightbar does not.
+func (d *Daemon) prepareForSleep() {
+	slog.Info("system entering sleep")
+	// Hold d.mu across the device use: the hotplug watcher may otherwise
+	// swap (and close) d.dev mid-write.
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.dev != nil {
+		if err := aura.TurnOff(d.dev); err != nil {
+			slog.Warn("failed to turn off lighting before sleep", "err", err)
 		}
-		return
 	}
-	slog.Info("system resumed from sleep, restoring volatile state")
-	d.restoreVolatileState()
 }
 
 // lidOpened reports whether a UPower PropertiesChanged signal indicates the
@@ -181,7 +247,9 @@ func (d *Daemon) restoreVolatileState() {
 
 	d.applyMu.Lock()
 	defer d.applyMu.Unlock()
-	if err := applyTuning(state, false); err != nil {
+	err := applyTuning(state, false)
+	d.recordTuning(err)
+	if err != nil {
 		slog.Warn("resume: failed to restore tuning", "err", err)
 	} else {
 		slog.Info("resume: tuning restored", "profile", state.Profile)

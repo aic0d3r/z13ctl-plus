@@ -107,11 +107,8 @@ func runFanCurveSet() error {
 	// high-TDP direct write must itself satisfy the safety floor.
 	profile := readCurrentProfile()
 	if tdp, tdpErr := cli.ReadEffectivePPT(profile); tdpErr == nil && tdp.PL1SPL > cli.TDPMaxSafe {
-		for _, p := range points {
-			if p.PWM < cli.HighTDPMinPWM {
-				return fmt.Errorf("PWM %d at %d°C is below minimum %d (50%%) required when sustained TDP is above %dW",
-					p.PWM, p.Temp, cli.HighTDPMinPWM, cli.TDPMaxSafe)
-			}
+		if err := cli.CheckHighTDPFanCurve(points); err != nil {
+			return err
 		}
 	}
 

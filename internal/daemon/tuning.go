@@ -1,8 +1,11 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/aic0d3r/z13ctl-plus/internal/cli"
 	"github.com/dahui/z13ctl/api"
@@ -28,16 +31,10 @@ type tuningPlan struct {
 	FanSafety bool
 }
 
-// curveMeetsHighTDPFloor reports whether every point of the curve is at or
-// above cli.HighTDPMinPWM, so it never drops below the safety floor (it can still
-// be flatter than the safety curve's ramp).
+// curveMeetsHighTDPFloor reports whether the curve cools at least as hard as
+// the high-TDP safety curve at every temperature.
 func curveMeetsHighTDPFloor(points []api.FanCurvePoint) bool {
-	for _, p := range points {
-		if p.PWM < cli.HighTDPMinPWM {
-			return false
-		}
-	}
-	return len(points) > 0
+	return cli.CheckHighTDPFanCurve(points) == nil
 }
 
 func planTuning(state api.State) tuningPlan {
@@ -110,4 +107,91 @@ func (d *Daemon) commitTuningState(next api.State, activePreset string) error {
 	d.state.ActivePreset = activePreset
 	d.mu.Unlock()
 	return d.persistState()
+}
+
+const (
+	profilePollInterval = 2 * time.Second
+	tuningRetryMin      = 10 * time.Second
+	tuningRetryMax      = 5 * time.Minute
+)
+
+// recordTuning notes the result of the last full tuning apply. A failure is
+// reported in get-state (TuningError) and retried by watchTuning, so clients
+// never show a saved override as applied when the hardware rejected it.
+func (d *Daemon) recordTuning(err error) {
+	msg := ""
+	if err != nil {
+		msg = err.Error()
+	}
+	d.mu.Lock()
+	changed := d.tuningErr != msg
+	d.tuningErr = msg
+	d.mu.Unlock()
+	if changed {
+		d.broadcast(response{Event: "state-changed"})
+	}
+}
+
+func hasTuningOverrides(s api.State) bool {
+	return s.FanCurveActive || s.TDPActive || s.UndervoltActive
+}
+
+// watchTuning keeps the hardware matching the saved tuning. It polls
+// platform_profile: a change made outside the daemon (KDE's power slider via
+// power-profiles-daemon, the Fn fan-profile hotkey) is adopted as the new
+// profile, and the active overrides that the profile write wiped are applied
+// again. It also retries a failed tuning apply with exponential backoff.
+func (d *Daemon) watchTuning(ctx context.Context) {
+	retry := tuningRetryMin
+	var nextRetry time.Time
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(profilePollInterval):
+		}
+		attempted, err := d.checkTuning(!time.Now().Before(nextRetry))
+		switch {
+		case !attempted:
+		case err != nil:
+			slog.Warn("tuning not applied; will retry", "in", retry, "err", err)
+			nextRetry = time.Now().Add(retry)
+			retry = min(retry*2, tuningRetryMax)
+		default:
+			retry, nextRetry = tuningRetryMin, time.Time{}
+		}
+	}
+}
+
+// checkTuning runs one watchTuning step and reports whether it applied tuning.
+func (d *Daemon) checkTuning(retryDue bool) (bool, error) {
+	// applyMu: every profile write by the daemon holds it, so a mismatch seen
+	// here was made by someone else.
+	d.applyMu.Lock()
+	defer d.applyMu.Unlock()
+	d.mu.Lock()
+	state := d.state
+	failed := d.tuningErr != ""
+	d.mu.Unlock()
+
+	current := readProfileFromSysfs()
+	if isPhysicalProfile(current) && current != state.Profile {
+		slog.Info("platform profile changed outside z13ctl-plus; adopting it and reapplying overrides",
+			"from", state.Profile, "to", current)
+		state.Profile = current
+		d.mu.Lock()
+		d.state.Profile = current
+		d.mu.Unlock()
+		if err := d.persistState(); err != nil {
+			slog.Warn("failed to save state", "err", err)
+		}
+		if !hasTuningOverrides(state) && !failed {
+			return false, nil
+		}
+	} else if !failed || !retryDue {
+		return false, nil
+	}
+	err := applyTuning(state, false)
+	d.recordTuning(err)
+	return true, err
 }

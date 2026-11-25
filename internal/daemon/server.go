@@ -254,6 +254,7 @@ func (d *Daemon) dispatch(req request) response {
 		s.Capabilities = cli.DetectCapabilities(display, s.BatteryDetail != nil)
 		d.mu.Lock()
 		s.PowerSource = d.powerSource
+		s.TuningError = d.tuningErr
 		d.mu.Unlock()
 		return response{OK: true, State: &s}
 	default:
@@ -608,7 +609,9 @@ func (d *Daemon) handleProfile(req request) response {
 	next := d.state
 	d.mu.Unlock()
 	next.Profile = profile
-	if err := applyTuning(next, true); err != nil {
+	err := applyTuning(next, true)
+	d.recordTuning(err)
+	if err != nil {
 		if profileAppliedBeforeError(err) {
 			_ = d.commitTuningState(next, "")
 		}
@@ -930,7 +933,9 @@ func (d *Daemon) handleTDPReset() response {
 	d.mu.Unlock()
 	next.TDP = nil
 	next.TDPActive = false
-	if err := applyTuning(next, true); err != nil {
+	err := applyTuning(next, true)
+	d.recordTuning(err)
+	if err != nil {
 		if profileAppliedBeforeError(err) {
 			_ = d.commitTuningState(next, "")
 		}
@@ -1028,7 +1033,9 @@ func (d *Daemon) handleTuningReset() response {
 	next.TDPActive = false
 	next.Undervolt = nil
 	next.UndervoltActive = false
-	if err := applyTuning(next, true); err != nil {
+	err := applyTuning(next, true)
+	d.recordTuning(err)
+	if err != nil {
 		if profileAppliedBeforeError(err) {
 			_ = d.commitTuningState(next, "")
 		}

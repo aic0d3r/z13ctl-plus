@@ -14,12 +14,12 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
-	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -96,7 +96,7 @@ func ReadDisplaySummary() DisplaySummary {
 	ctx, cancel := context.WithTimeout(context.Background(), refreshTimeout)
 	defer cancel()
 	var summary DisplaySummary
-	if out, err := kscreenCommand(ctx, "-o").CombinedOutput(); err == nil {
+	if out, err := kscreenCommand(ctx, "-j").Output(); err == nil {
 		summary = summarizeDisplays(out)
 	}
 
@@ -107,7 +107,30 @@ func ReadDisplaySummary() DisplaySummary {
 	return summary
 }
 
-// summarizeDisplays parses kscreen-doctor -o output into a DisplaySummary.
+// kscreenOutput is the part of one `kscreen-doctor -j` output we use.
+type kscreenOutput struct {
+	Name          string  `json:"name"`
+	Enabled       bool    `json:"enabled"`
+	CurrentModeID string  `json:"currentModeId"`
+	Scale         float64 `json:"scale"`
+	Rotation      int     `json:"rotation"`
+	Modes         []struct {
+		ID          string  `json:"id"`
+		RefreshRate float64 `json:"refreshRate"`
+	} `json:"modes"`
+}
+
+func parseKScreen(out []byte) []kscreenOutput {
+	var config struct {
+		Outputs []kscreenOutput `json:"outputs"`
+	}
+	if json.Unmarshal(out, &config) != nil {
+		return nil
+	}
+	return config.Outputs
+}
+
+// summarizeDisplays parses kscreen-doctor -j output into a DisplaySummary.
 func summarizeDisplays(out []byte) DisplaySummary {
 	var summary DisplaySummary
 	if panel, ok := parseInternalDisplay(out); ok {
@@ -117,27 +140,19 @@ func summarizeDisplays(out []byte) DisplaySummary {
 			summary.PanelOff = true
 		}
 	}
-	out = ansiRe.ReplaceAll(out, nil)
-	for _, block := range outputRe.Split(string(out), -1)[1:] {
-		// A block starts with "<id> <name> <uuid>".
-		if fields := strings.Fields(block); len(fields) > 1 && fields[1] != outputName && enabledRe.MatchString(block) {
+	for _, o := range parseKScreen(out) {
+		if o.Name != outputName && o.Enabled {
 			summary.External = true
 		}
 	}
 	return summary
 }
 
-var (
-	ansiRe    = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-	outputRe  = regexp.MustCompile(`(?m)^Output:`)
-	enabledRe = regexp.MustCompile(`(?m)^\s*enabled\s*$`)
-)
-
 // ReadInternalDisplay returns the enabled, mode, scale, and rotation state of eDP-1.
 func ReadInternalDisplay() (InternalDisplayState, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), refreshTimeout)
 	defer cancel()
-	out, err := kscreenCommand(ctx, "-o").CombinedOutput()
+	out, err := kscreenCommand(ctx, "-j").Output()
 	if err != nil {
 		return InternalDisplayState{}, err
 	}
@@ -148,32 +163,22 @@ func ReadInternalDisplay() (InternalDisplayState, error) {
 	return state, nil
 }
 
-// parseInternalDisplay extracts the eDP-1 state and current mode.
+// parseInternalDisplay extracts the eDP-1 state and current mode from
+// kscreen-doctor -j output.
 func parseInternalDisplay(out []byte) (InternalDisplayState, bool) {
-	out = ansiRe.ReplaceAll(out, nil)
-	// kscreen-doctor marks the active mode with a trailing "*". Example:
-	//   Modes:  1:2560x1600@180.00*  2:2560x1600@60.00  ...
-	// We look for "@<digits>.<digits>*" inside a Modes: block.
-	// To stay robust if multiple outputs are connected, restrict to the
-	// eDP-1 output block.
-	re := regexp.MustCompile(`(?m)^Output:.*\b` + outputName + `\b.*\n(?s:.*?)(?:\nOutput:|\z)`)
-	block := re.Find(out)
-	if block == nil {
-		return InternalDisplayState{}, false
+	for _, o := range parseKScreen(out) {
+		if o.Name != outputName {
+			continue
+		}
+		state := InternalDisplayState{Enabled: o.Enabled, Scale: o.Scale, Rotation: rotationName(o.Rotation)}
+		for _, m := range o.Modes {
+			if m.ID == o.CurrentModeID {
+				state.Refresh = int(math.Round(m.RefreshRate))
+			}
+		}
+		return state, true
 	}
-	state := InternalDisplayState{Enabled: enabledRe.Match(block)}
-	rateRe := regexp.MustCompile(`@(\d+)\.\d+\*`)
-	m := rateRe.FindSubmatch(block)
-	if m != nil {
-		state.Refresh, _ = strconv.Atoi(string(m[1]))
-	}
-	if m := regexp.MustCompile(`(?m)^\s*Scale:\s*([0-9.]+)\s*$`).FindSubmatch(block); m != nil {
-		state.Scale, _ = strconv.ParseFloat(string(m[1]), 64)
-	}
-	if m := regexp.MustCompile(`(?m)^\s*Rotation:\s*(\d+)\s*$`).FindSubmatch(block); m != nil {
-		state.Rotation = rotationName(string(m[1]))
-	}
-	return state, true
+	return InternalDisplayState{}, false
 }
 
 // ApplyInternalDisplay changes only the non-zero internal-panel properties in
@@ -244,15 +249,15 @@ func kscreenCommand(ctx context.Context, args ...string) *exec.Cmd {
 	return cmd
 }
 
-func rotationName(value string) string {
+func rotationName(value int) string {
 	switch value {
-	case "1":
+	case 1:
 		return "none"
-	case "2":
+	case 2:
 		return "left"
-	case "4":
+	case 4:
 		return "inverted"
-	case "8":
+	case 8:
 		return "right"
 	default:
 		return ""

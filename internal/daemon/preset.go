@@ -44,11 +44,15 @@ func (d *Daemon) seedDefaultPresets(fresh bool) error {
 	return d.persistState()
 }
 
+// setDefaultPowerConfiguration seeds a fresh install. It only prepares the
+// recommended presets: automation and the charge limit stay off until the user
+// turns them on, so a first start changes no hardware settings.
 func setDefaultPowerConfiguration(state *api.State, minFrequencyKHz int) {
 	state.Profile = "balanced"
-	state.Battery = 80
 	state.Presets = recommendedPresets(minFrequencyKHz)
-	state.PowerPolicy = recommendedPowerPolicy()
+	policy := recommendedPowerPolicy()
+	policy.Enabled = false
+	state.PowerPolicy = policy
 }
 
 func recommendedPresets(minFrequencyKHz int) map[string]api.Preset {
@@ -109,7 +113,7 @@ func (d *Daemon) restoreRecommended() error {
 
 	d.mu.Lock()
 	restoreRecommendedPowerConfiguration(&d.state, cpu.MinLimitKHz)
-	d.powerSource = source
+	d.setPowerSourceLocked(source)
 	d.mu.Unlock()
 	if err := d.persistState(); err != nil {
 		return err
@@ -265,8 +269,13 @@ func (d *Daemon) applyPresetValue(name string, preset api.Preset) error {
 	if err := validatePreset(preset); err != nil {
 		return fmt.Errorf("preset %q: %w", name, err)
 	}
-	if err := validatePresetHardware(preset); err != nil {
-		return fmt.Errorf("preset %q: %w", name, err)
+	var currentCPU *api.CPUPowerState
+	if cpu, err := cli.ReadCPUPower(); err == nil {
+		currentCPU = &cpu
+	}
+	preset, skipped := skipUnavailable(preset, cli.SMUProbeUndervolt(), currentCPU)
+	if len(skipped) > 0 {
+		slog.Warn("preset: skipping what this machine cannot apply", "name", name, "skipped", skipped)
 	}
 	// Fan mode stays user-controlled: presets neither capture nor apply it,
 	// and a FanCurve stored by older versions is ignored.
@@ -281,7 +290,9 @@ func (d *Daemon) applyPresetValue(name string, preset api.Preset) error {
 	next.UndervoltActive = preset.Undervolt != nil
 
 	var failed []string
-	if err := applyTuning(next, true); err != nil {
+	tuningErr := applyTuning(next, true)
+	d.recordTuning(tuningErr)
+	if err := tuningErr; err != nil {
 		failed = append(failed, err.Error())
 		if profileAppliedBeforeError(err) {
 			_ = d.commitTuningState(next, "")
@@ -290,7 +301,7 @@ func (d *Daemon) applyPresetValue(name string, preset api.Preset) error {
 		return err
 	}
 	if cpu := preset.CPUPower; cpu != nil {
-		current, _ := cli.ReadCPUPower()
+		current := *currentCPU // skipUnavailable dropped CPUPower when unreadable
 		if current.MinFrequencyKHz != cpu.MinFrequencyKHz {
 			if err := cli.SetCPUMinFrequency(cpu.MinFrequencyKHz); err != nil {
 				failed = append(failed, "CPU minimum: "+err.Error())
@@ -429,6 +440,38 @@ func validatePreset(p api.Preset) error {
 	return nil
 }
 
+// skipUnavailable removes the parts of p this machine cannot apply right now:
+// an undervolt without a working ryzen_smu, or CPU values cpufreq does not
+// offer (cpu is nil when cpufreq is unreadable). A skipped CPU value is set
+// to the current one, so applying it writes nothing. The rest of the preset
+// still applies, matching how a missing panel overdrive is handled.
+func skipUnavailable(p api.Preset, smuOK bool, cpu *api.CPUPowerState) (applicable api.Preset, skipped []string) {
+	if p.Undervolt != nil && !smuOK {
+		p.Undervolt = nil
+		skipped = append(skipped, "undervolt (ryzen_smu unavailable)")
+	}
+	if p.CPUPower == nil {
+		return p, skipped
+	}
+	if cpu == nil {
+		p.CPUPower = nil
+		return p, append(skipped, "CPU power (cpufreq unreadable)")
+	}
+	c := *p.CPUPower
+	if c.MinFrequencyKHz < cpu.MinLimitKHz || c.MinFrequencyKHz > cpu.MaxLimitKHz {
+		skipped = append(skipped, fmt.Sprintf("CPU minimum %d kHz (range %d-%d)", c.MinFrequencyKHz, cpu.MinLimitKHz, cpu.MaxLimitKHz))
+		c.MinFrequencyKHz = cpu.MinFrequencyKHz
+	}
+	if !slices.Contains(cpu.EPPChoices, c.EPP) {
+		skipped = append(skipped, fmt.Sprintf("CPU EPP %q", c.EPP))
+		c.EPP = cpu.EPP
+	}
+	p.CPUPower = &c
+	return p, skipped
+}
+
+// validatePresetHardware rejects values this machine cannot apply. Used by
+// the preset editor; applying a stored preset skips them instead.
 func validatePresetHardware(p api.Preset) error {
 	if p.Undervolt != nil && !cli.SMUProbeUndervolt() {
 		return fmt.Errorf("undervolt unavailable: ryzen_smu is not loaded")
@@ -601,27 +644,54 @@ func (d *Daemon) requestPolicyApply() {
 	}
 }
 
+// setPowerSourceLocked records the live power source. It is also kept in the
+// persisted state so a restart can tell whether the source changed while the
+// daemon was down. Callers hold d.mu.
+func (d *Daemon) setPowerSourceLocked(source string) {
+	d.powerSource = source
+	d.state.PowerSource = source
+}
+
+// applyInitialPowerPolicy applies the policy at startup and reports whether
+// it did. When the power source is the one the daemon last saw, the policy
+// already ran for it: a manually chosen preset is re-applied and manual
+// settings (no active preset) are left to the normal restore, so a daemon
+// restart (e.g. a package upgrade) does not override them.
 func (d *Daemon) applyInitialPowerPolicy() bool {
 	source, err := cli.ReadPowerSource()
 	if err != nil {
 		return false
 	}
 	d.mu.Lock()
-	d.powerSource = source
+	lastSource := d.state.PowerSource
+	active := d.state.ActivePreset
+	d.setPowerSourceLocked(source)
 	policy := clonePtr(d.state.PowerPolicy)
 	d.mu.Unlock()
-	if policy == nil || !policy.Enabled {
+	name := initialPolicyPreset(policy, lastSource, source, active)
+	if name == "" {
 		return false
-	}
-	name := policy.BatteryPreset
-	if source == cli.PowerSourceAC {
-		name = policy.ACPreset
 	}
 	if err := d.applyPreset(name); err != nil {
 		slog.Warn("failed to apply initial power preset; watcher will retry", "source", source, "preset", name, "err", err)
 		d.requestPolicyApply()
 	}
 	return true
+}
+
+// initialPolicyPreset returns the preset to apply at startup, or "" to restore
+// the saved settings instead.
+func initialPolicyPreset(policy *api.PowerPolicy, lastSource, source, active string) string {
+	if policy == nil || !policy.Enabled {
+		return ""
+	}
+	if lastSource == source {
+		return active
+	}
+	if source == cli.PowerSourceAC {
+		return policy.ACPreset
+	}
+	return policy.BatteryPreset
 }
 
 func (d *Daemon) requestPowerCheck() {
@@ -674,7 +744,7 @@ func (d *Daemon) checkPowerPolicy(source string, err error, observedSource, last
 		return
 	}
 	d.mu.Lock()
-	d.powerSource = source
+	d.setPowerSourceLocked(source)
 	policy := clonePtr(d.state.PowerPolicy)
 	activePreset := d.state.ActivePreset
 	d.mu.Unlock()

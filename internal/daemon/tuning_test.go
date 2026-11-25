@@ -90,4 +90,13 @@ func TestPlanTuningHighTDPKeepsStrongUserCurve(t *testing.T) {
 	if plan := planTuning(state); !slices.Equal(plan.Fan.Points, cli.HighTDPFanCurve()) {
 		t.Error("high TDP with a sub-floor user curve: the safety curve should apply")
 	}
+
+	flat := &api.FanCurveState{Mode: 1, Points: make([]api.FanCurvePoint, 8)}
+	for i := range flat.Points {
+		flat.Points[i] = api.FanCurvePoint{Temp: 30 + 8*i, PWM: cli.HighTDPMinPWM}
+	}
+	state.FanCurve = flat
+	if plan := planTuning(state); !slices.Equal(plan.Fan.Points, cli.HighTDPFanCurve()) {
+		t.Error("high TDP with a flat 50% curve: the safety ramp should apply")
+	}
 }
