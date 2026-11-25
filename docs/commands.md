@@ -195,9 +195,11 @@ Configure and report the optional `z13-tablet-kit` companion through the daemon:
 # Inspect the authoritative settings as JSON.
 z13ctl-plus tablet settings
 
-# Replace all settings atomically (all six flags are required).
+# Replace all settings atomically (six flags are required;
+# --disable-touchscreen-in-laptop is optional and defaults to false).
 z13ctl-plus tablet settings set \
   --disable-touchscreen-in-desktop=true \
+  --disable-touchscreen-in-laptop=false \
   --two-finger-hold-context-menu=false \
   --touchpad-enabled=false \
   --scroll-sensitivity=3 \

@@ -164,6 +164,7 @@ fallback used by the socket) for read-only use by `z13-tablet-kit`:
 ```json
 {
   "disable_touchscreen_in_desktop": true,
+  "disable_touchscreen_in_laptop": false,
   "two_finger_hold_context_menu": false,
   "touchpad_enabled": false,
   "scroll_sensitivity": 3,

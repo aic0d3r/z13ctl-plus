@@ -141,6 +141,7 @@ handled, err := api.SendPowerPolicySet(true, "Plugged In", "On Battery")
 // Optional tablet companion settings and live heartbeat
 handled, err := api.SendTabletSettingsSet(api.TabletSettings{
     DisableTouchscreenInDesktop: true,
+    DisableTouchscreenInLaptop:  false,
     TwoFingerHoldContextMenu:    false,
     TouchpadEnabled:             false,
     ScrollSensitivity:           3,

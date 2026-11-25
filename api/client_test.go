@@ -59,6 +59,7 @@ func TestSendTuningResetProtocol(t *testing.T) {
 func TestTabletProtocol(t *testing.T) {
 	settings := TabletSettings{
 		DisableTouchscreenInDesktop: true,
+		DisableTouchscreenInLaptop:  true,
 		TwoFingerHoldContextMenu:    true,
 		TouchpadEnabled:             true,
 		ScrollSensitivity:           4,

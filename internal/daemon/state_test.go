@@ -55,6 +55,7 @@ func TestTabletIntegrationIsNotPersisted(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	settings := api.TabletSettings{
 		DisableTouchscreenInDesktop: false,
+		DisableTouchscreenInLaptop:  true,
 		TwoFingerHoldContextMenu:    true,
 		TouchpadEnabled:             true,
 		ScrollSensitivity:           5,

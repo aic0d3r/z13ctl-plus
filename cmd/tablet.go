@@ -10,6 +10,7 @@ import (
 
 var (
 	tabletDisableTouchscreenInDesktop bool
+	tabletDisableTouchscreenInLaptop  bool
 	tabletTwoFingerHoldContextMenu    bool
 	tabletSettingsTouchpadEnabled     bool
 	tabletScrollSensitivity           int
@@ -62,6 +63,7 @@ var tabletSettingsSetCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, _ []string) error {
 		settings := api.TabletSettings{
 			DisableTouchscreenInDesktop: tabletDisableTouchscreenInDesktop,
+			DisableTouchscreenInLaptop:  tabletDisableTouchscreenInLaptop,
 			TwoFingerHoldContextMenu:    tabletTwoFingerHoldContextMenu,
 			TouchpadEnabled:             tabletSettingsTouchpadEnabled,
 			ScrollSensitivity:           tabletScrollSensitivity,
@@ -107,6 +109,8 @@ var tabletReportCmd = &cobra.Command{
 
 func init() {
 	tabletSettingsSetCmd.Flags().BoolVar(&tabletDisableTouchscreenInDesktop, "disable-touchscreen-in-desktop", true, "Disable touchscreen in desktop posture")
+	// Optional, unlike the others, so scripts written before it existed keep working.
+	tabletSettingsSetCmd.Flags().BoolVar(&tabletDisableTouchscreenInLaptop, "disable-touchscreen-in-laptop", false, "Disable touchscreen in laptop posture (folio attached)")
 	tabletSettingsSetCmd.Flags().BoolVar(&tabletTwoFingerHoldContextMenu, "two-finger-hold-context-menu", false, "Emit the context-menu key on a stationary two-finger hold")
 	tabletSettingsSetCmd.Flags().BoolVar(&tabletSettingsTouchpadEnabled, "touchpad-enabled", false, "Enable the folio touchpad")
 	tabletSettingsSetCmd.Flags().IntVar(&tabletScrollSensitivity, "scroll-sensitivity", 3, "Touch scroll sensitivity level (1-5)")

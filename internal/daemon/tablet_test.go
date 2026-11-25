@@ -57,6 +57,7 @@ func TestTabletProtocolPersistsSettingsAndKeepsStatusLive(t *testing.T) {
 
 	settings := api.TabletSettings{
 		DisableTouchscreenInDesktop: false,
+		DisableTouchscreenInLaptop:  true,
 		TwoFingerHoldContextMenu:    true,
 		TouchpadEnabled:             true,
 		ScrollSensitivity:           5,

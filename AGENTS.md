@@ -193,7 +193,7 @@ contrib/
   | power policy | `{"cmd":"power-policy-set","enabled":true,"ac_preset":"AC","battery_preset":"Battery"}` | `ok` |
   | display posture | `{"cmd":"display-posture","posture":"tablet"}` | `ok` |
   | display rotation | `{"cmd":"display-rotation","rotation":"left"}` | `ok` |
-  | tablet settings | `{"cmd":"tablet-settings-set","tablet_settings":{"disable_touchscreen_in_desktop":true,"two_finger_hold_context_menu":false,"touchpad_enabled":false,"scroll_sensitivity":3,"scroll_speed":2,"keep_display_scale":false}}` | `ok` |
+  | tablet settings | `{"cmd":"tablet-settings-set","tablet_settings":{"disable_touchscreen_in_desktop":true,"disable_touchscreen_in_laptop":false,"two_finger_hold_context_menu":false,"touchpad_enabled":false,"scroll_sensitivity":3,"scroll_speed":2,"keep_display_scale":false}}` | `ok` |
   | tablet status | `{"cmd":"tablet-integration-report","tablet_integration":{"posture":"tablet",...}}` | `ok` |
   | subscribe | `{"cmd":"subscribe","events":["gui-toggle","state-changed"]}` | `ok`, then streams events |
 - **IPC library**: Hand-rolled JSON. gRPC/drpc require protobuf code generation;
