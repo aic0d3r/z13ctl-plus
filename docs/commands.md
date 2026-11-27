@@ -218,6 +218,10 @@ z13ctl-plus tablet settings set \
   --scroll-speed=2 \
   --keep-display-scale=false
 
+# Flip touch on/off for the current posture (desktop or laptop) and print
+# "Touchscreen on" / "Touchscreen off". Tablet posture always keeps touch on.
+z13ctl-plus tablet touch toggle
+
 # Publish one live status/heartbeat (all eight flags are required).
 z13ctl-plus tablet report \
   --posture=tablet \

@@ -50,6 +50,9 @@ release-notes.md (gitignored) is the scratch file for the next entry.
   touchscreen off in laptop posture (folio attached). CLI:
   `tablet settings set --disable-touchscreen-in-laptop`. Needs z13-tablet-kit
   with the matching support.
+- `tablet touch toggle` flips the touchscreen setting for the current
+  posture (desktop or laptop) and prints the new state, for binding to a
+  shortcut. Tablet posture always keeps touch on.
 - An open drawer no longer makes the daemon run `kscreen-doctor` every
   second: display reads are cached for 5 s and refreshed right after the
   daemon changes the display itself.

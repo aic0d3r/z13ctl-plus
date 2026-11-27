@@ -81,6 +81,60 @@ var tabletSettingsSetCmd = &cobra.Command{
 	},
 }
 
+var tabletTouchCmd = &cobra.Command{
+	Use:   "touch",
+	Short: "Control the touchscreen policy for the current posture",
+}
+
+var tabletTouchToggleCmd = &cobra.Command{
+	Use:   "toggle",
+	Short: "Flip the touchscreen on/off setting for the current posture",
+	Args:  cobra.NoArgs,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		handled, state, err := api.SendGetState()
+		if err != nil {
+			return err
+		}
+		if !handled || state == nil {
+			return fmt.Errorf("touch toggle requires the z13ctl-plus daemon")
+		}
+		if state.TabletIntegration == nil {
+			return fmt.Errorf("z13-tablet-kit is not reporting a posture")
+		}
+		settings, on, err := toggleTouch(state.TabletSettings, state.TabletIntegration.Posture)
+		if err != nil {
+			return err
+		}
+		if handled, err = api.SendTabletSettingsSet(settings); err != nil {
+			return err
+		}
+		if !handled {
+			return fmt.Errorf("touch toggle requires the z13ctl-plus daemon")
+		}
+		if on {
+			fmt.Println("Touchscreen on")
+		} else {
+			fmt.Println("Touchscreen off")
+		}
+		return nil
+	},
+}
+
+// toggleTouch flips the disable-touch setting of posture and reports whether
+// touch is now on. Tablet posture has no keyboard, so touch always stays on.
+func toggleTouch(s api.TabletSettings, posture string) (api.TabletSettings, bool, error) {
+	switch posture {
+	case "desktop":
+		s.DisableTouchscreenInDesktop = !s.DisableTouchscreenInDesktop
+		return s, !s.DisableTouchscreenInDesktop, nil
+	case "laptop":
+		s.DisableTouchscreenInLaptop = !s.DisableTouchscreenInLaptop
+		return s, !s.DisableTouchscreenInLaptop, nil
+	default:
+		return s, true, fmt.Errorf("touchscreen always stays on in tablet mode")
+	}
+}
+
 var tabletReportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "Report live tablet integration status",
@@ -133,6 +187,7 @@ func init() {
 	}
 
 	tabletSettingsCmd.AddCommand(tabletSettingsSetCmd)
-	tabletCmd.AddCommand(tabletSettingsCmd, tabletReportCmd)
+	tabletTouchCmd.AddCommand(tabletTouchToggleCmd)
+	tabletCmd.AddCommand(tabletSettingsCmd, tabletTouchCmd, tabletReportCmd)
 	rootCmd.AddCommand(tabletCmd)
 }
