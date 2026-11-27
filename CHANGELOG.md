@@ -3,7 +3,7 @@
 All notable changes. Newest first. Bodies mirror the GitHub release notes;
 release-notes.md (gitignored) is the scratch file for the next entry.
 
-## Unreleased
+## v2.7.0 (2026-11-27)
 
 - The daemon reports when saved overrides are not applied (`tuning_error` in
   `get-state`, shown by `status` and `doctor`) and retries with backoff.

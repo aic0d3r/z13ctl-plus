@@ -470,7 +470,7 @@ The `z13gui-plus` overlay and the `api/` submodule are complete and released.
   `github.com/dahui/z13ctl/api`, selected by Plus clients through a replacement.
 - `z13gui-plus` (repo `aic0d3r/z13gui-plus`) is a GTK4 Wayland/Gamescope overlay
   drawer talking to the daemon through `api/`.
-- Current release: **v2.6.1** (main) and **api/v1.10.0** (submodule).
+- Current release: **v2.7.0** (main) and **api/v1.11.0** (submodule).
 
 **Fork API release boundary:** Root `vX.Y.Z` tags in `aic0d3r/z13ctl-plus` do not
 publish the canonical `github.com/dahui/z13ctl/api` module. Plus clients select
